@@ -1,0 +1,18 @@
+# Android / Gradle
+.gradle/
+build/
+**/build/
+local.properties
+.idea/
+*.iml
+
+# Signing material — NEVER COMMIT PRIVATE KEYS OR CREDENTIALS
+*.jks
+*.keystore
+*.p12
+*.pfx
+signing-credentials.txt
+keystore.properties
+signing.properties
+.env
+.env.*
