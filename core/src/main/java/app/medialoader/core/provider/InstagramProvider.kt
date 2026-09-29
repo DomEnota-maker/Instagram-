@@ -23,32 +23,21 @@ class InstagramProvider(
         val code = shortcode(url) ?: throw ProviderException(
             ProviderException.Reason.UNSUPPORTED, "Нужна ссылка на публикацию или Reel Instagram."
         )
-        val page = try {
-            pageSource("https://www.instagram.com/p/$code/")
-        } catch (error: Exception) {
-            throw ProviderException(
-                ProviderException.Reason.TEMPORARY_FAILURE,
-                "Не удалось открыть Instagram: ${error.localizedMessage ?: "ошибка сети"}"
-            )
+        val page = try { pageSource("https://www.instagram.com/p/$code/") } catch (_: Exception) { null }
+        if (page != null) {
+            extractEmbeddedMedia(page, code).takeIf { it.isNotEmpty() }?.let { return it }
+            mediaFromMeta(page, code)?.let { return listOf(it) }
         }
-        val embedded = extractEmbeddedMedia(page, code)
-        if (embedded.isNotEmpty()) return embedded
 
-        val video = meta(page, "og:video:secure_url") ?: meta(page, "og:video")
-        val image = meta(page, "og:image")
-        val mediaUrl = video ?: image
-        if (mediaUrl != null && safeMediaUrl(mediaUrl)) {
-            val isVideo = video != null
-            return listOf(MediaItem(
-                id = code, providerId = id,
-                type = if (isVideo) MediaType.VIDEO else MediaType.PHOTO,
-                originalName = fileName(mediaUrl, code, 0, isVideo),
-                downloadUrl = mediaUrl, previewUrl = image,
-            ))
+        val embedPage = try { pageSource("https://www.instagram.com/p/$code/embed/captioned/") }
+            catch (_: Exception) { null }
+        if (embedPage != null) {
+            extractEmbedMedia(embedPage, code)?.let { return listOf(it) }
         }
         throw ProviderException(
-            ProviderException.Reason.ACCESS_REQUIRED,
-            "Не удалось получить медиа из этой страницы Instagram. Публикация может требовать входа или Instagram изменил ответ."
+            if (page == null && embedPage == null) ProviderException.Reason.TEMPORARY_FAILURE
+            else ProviderException.Reason.ACCESS_REQUIRED,
+            "Не удалось получить медиа из Instagram. Страница может требовать входа или формат ответа изменился."
         )
     }
 
@@ -61,6 +50,37 @@ class InstagramProvider(
                 path.size < 2 || path[0] !in setOf("p", "reel", "tv")) null
             else path[1].takeIf { it.matches(Regex("[A-Za-z0-9_-]{5,64}")) }
         } catch (_: Exception) { null }
+
+        private fun mediaFromMeta(html: String, code: String): MediaItem? {
+            val video = meta(html, "og:video:secure_url") ?: meta(html, "og:video")
+            val image = meta(html, "og:image")
+            val url = (video ?: image)?.takeIf(::safeMediaUrl) ?: return null
+            return MediaItem(
+                id = code, providerId = "instagram",
+                type = if (video != null) MediaType.VIDEO else MediaType.PHOTO,
+                originalName = fileName(url, code, 0, video != null),
+                downloadUrl = url, previewUrl = image?.takeIf(::safeMediaUrl),
+            )
+        }
+
+        /** Fallback for the public embed page when the regular page exposes no media. */
+        fun extractEmbedMedia(html: String, code: String): MediaItem? {
+            fun urlProperty(key: String): String? {
+                val pattern = Regex("\"$key\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"")
+                val encoded = pattern.find(html)?.groupValues?.get(1) ?: return null
+                val decoded = runCatching { JSONObject("{\"url\":\"$encoded\"}").getString("url") }.getOrNull()
+                return decoded?.replace("&amp;", "&")?.takeIf(::safeMediaUrl)
+            }
+            val video = urlProperty("video_url")
+            val image = urlProperty("display_url") ?: meta(html, "og:image")?.takeIf(::safeMediaUrl)
+            val url = video ?: image ?: return null
+            return MediaItem(
+                id = code, providerId = "instagram",
+                type = if (video != null) MediaType.VIDEO else MediaType.PHOTO,
+                originalName = fileName(url, code, 0, video != null),
+                downloadUrl = url, previewUrl = image,
+            )
+        }
 
         /** Instagram's shortcode alphabet encodes the numeric media id in base 64. */
         fun mediaId(code: String): String {

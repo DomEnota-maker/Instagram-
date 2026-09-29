@@ -284,6 +284,6 @@ private fun SettingsScreen() {
         Panel { Text("Папка загрузок", fontWeight = FontWeight.SemiBold); Text("Download/MediaLoader", color = Color.LightGray) }
         Panel { Text("Имена файлов", fontWeight = FontWeight.SemiBold); Text("При совпадении добавляется _1, _2 и далее.", color = Color.LightGray) }
         Panel { Text("Уведомления", fontWeight = FontWeight.SemiBold); Text("Системный менеджер показывает ход и завершение загрузки.", color = Color.LightGray) }
-        Panel { Text("О приложении", fontWeight = FontWeight.SemiBold); Text("MediaLoader 0.1.0-alpha03", color = Color.LightGray) }
+        Panel { Text("О приложении", fontWeight = FontWeight.SemiBold); Text("MediaLoader 0.1.0-alpha04", color = Color.LightGray) }
     }
 }

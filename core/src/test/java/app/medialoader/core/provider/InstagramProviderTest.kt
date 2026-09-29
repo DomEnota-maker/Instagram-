@@ -51,4 +51,21 @@ class InstagramProviderTest {
         val page = """<script data-sjs>{"item":{"code":"Other9","image_versions2":{"candidates":[{"url":"https://scontent.fbcdn.net/wrong.jpg"}]}}}</script>"""
         assertTrue(InstagramProvider.extractEmbeddedMedia(page, "Ab_12-z").isEmpty())
     }
+
+    @Test fun fallsBackToPublicEmbedAndDecodesEscapedMediaUrl() = runBlocking {
+        val provider = InstagramProvider { url ->
+            if (url.endsWith("/embed/captioned/"))
+                """<script>{"video_url":"https:\/\/scontent.fbcdn.net\/clip.mp4?a=1\u0026b=2","display_url":"https:\/\/scontent.fbcdn.net\/cover.jpg"}</script>"""
+            else "<html>No public media metadata</html>"
+        }
+        val item = provider.resolve("https://www.instagram.com/reel/Ab_12-z/").single()
+        assertEquals(MediaType.VIDEO, item.type)
+        assertEquals("https://scontent.fbcdn.net/clip.mp4?a=1&b=2", item.downloadUrl)
+        assertEquals("https://scontent.fbcdn.net/cover.jpg", item.previewUrl)
+    }
+
+    @Test fun rejectsEmbedUrlOutsideInstagramCdn() {
+        assertNull(InstagramProvider.extractEmbedMedia(
+            """{"video_url":"https://fbcdn.net.evil.test/clip.mp4"}""", "Ab_12-z"))
+    }
 }
