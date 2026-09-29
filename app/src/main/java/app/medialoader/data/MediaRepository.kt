@@ -46,6 +46,7 @@ class MediaRepository(private val context: Context) {
             .setMimeType(if (item.type.name == "VIDEO") "video/mp4" else "image/jpeg")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "MediaLoader/$name")
+        request.addRequestHeader("Referer", "https://www.instagram.com/")
         val systemId = system.enqueue(request)
         DownloadEntity(
             id = UUID.randomUUID().toString(), providerId = item.providerId,

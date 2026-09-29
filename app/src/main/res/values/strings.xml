@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">MediaLoader</string>
-    <string name="app_version">0.1.0-alpha02</string>
+    <string name="app_version">0.1.0-alpha03</string>
     <string name="tab_home">Скачать</string>
     <string name="tab_downloads">Загрузки</string>
     <string name="tab_settings">Настройки</string>
