@@ -21,6 +21,8 @@ data class DownloadEntity(
     val savedUri: String?,
     val sizeBytes: Long?,
     val createdAtEpochMillis: Long,
+    val systemDownloadId: Long? = null,
+    val errorMessage: String? = null,
 )
 
 @Entity(tableName = "settings")
@@ -36,6 +38,9 @@ interface DownloadDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(item: DownloadEntity)
+
+    @Query("SELECT * FROM downloads ORDER BY createdAtEpochMillis DESC")
+    suspend fun all(): List<DownloadEntity>
 }
 
 @Dao
