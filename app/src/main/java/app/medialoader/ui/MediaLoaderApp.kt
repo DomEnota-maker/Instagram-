@@ -47,7 +47,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -235,8 +234,9 @@ private fun PreviewScreen(items: List<MediaItem>, selected: Set<String>, onSelec
 
 @Composable
 private fun PreviewImage(url: String) {
-    val bitmap by produceState<android.graphics.Bitmap?>(initialValue = null, url) {
-        value = withContext(Dispatchers.IO) {
+    var bitmap by remember(url) { mutableStateOf<android.graphics.Bitmap?>(null) }
+    LaunchedEffect(url) {
+        bitmap = withContext(Dispatchers.IO) {
             try {
                 if (!app.medialoader.core.provider.InstagramProvider.safeMediaUrl(url)) null
                 else (URL(url).openConnection().apply { connectTimeout = 8000; readTimeout = 8000 })
