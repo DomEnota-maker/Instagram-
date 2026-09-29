@@ -1,19 +1,26 @@
-# MediaLoader
+# MediaLoader 0.1.0-alpha01 — Foundation
 
-Android application for downloading and managing media from different sources.
+Каркас Android-приложения для будущего менеджера загрузки медиа. Instagram — первый планируемый источник; общие модели и интерфейсы не зависят от платформы.
 
-## Project principles
+## Состав
 
-- Instagram is the first provider, not the only one.
-- Source-specific extraction logic stays isolated.
-- Common download engine, history and storage are shared.
+- `app`: Kotlin, Jetpack Compose, Material 3, Navigation Compose; экраны «Скачать», «Загрузки», «Настройки», «Предпросмотр».
+- `core`: общие модели, контракты, схема Room для истории и настроек, правила именования файлов.
 
-## Current stage
+В этой версии ссылки не анализируются, файлы не скачиваются, история не записывается, авторизация и внешние интеграции отсутствуют. Room и контракты пока не подключены к UI. Предпросмотр показывает явно обозначенные демонстрационные данные. Сетевые и файловые разрешения пока не нужны.
 
-Sprint 0: project foundation.
+## Сборка
 
-## Planned providers
+JDK 17, Android SDK 35 и Gradle 8.9 с доступом к Google Maven и Maven Central:
 
-- Instagram
-- YouTube (future)
-- Other sources (future)
+```sh
+gradle :app:assembleDebug
+```
+
+Результат: `app/build/outputs/apk/debug/app-debug.apk`. Проект не содержит Gradle Wrapper; CI устанавливает зафиксированную версию Gradle. Локальная сборка требует установленного Gradle 8.9.
+
+## Границы следующего этапа
+
+Реализации `MediaProvider`, `MediaResolver`, `DownloadManager`, `QueueManager`, `StorageManager` и `DownloadHistory` подключаются позже. Получение данных конкретной платформы остаётся внутри её провайдера. UI получает общие `MediaItem` и `DownloadTask`. В планах: импорт через «Поделиться», выбор элементов, очередь, сохранение в `Download/MediaLoader` и история.
+
+Документы проекта: `ТЗ_v0.2.md`, `ARCHITECTURE_v0.1.md`, `Roadmap.md` в папке «Загрузчик».
