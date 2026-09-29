@@ -199,9 +199,9 @@ private fun HomeScreen(link: String, onLink: (String) -> Unit, busy: Boolean, er
             Text("Все →", color = purple, modifier = Modifier.clickable(onClick = onDownloads))
         }
         if (recent.isEmpty()) Panel {
-            Text("↓", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.align(Alignment.CenterHorizontally), color = purple)
-            Text("Нет загрузок", modifier = Modifier.align(Alignment.CenterHorizontally))
-            Text("Вставьте ссылку, чтобы начать", modifier = Modifier.align(Alignment.CenterHorizontally), color = Color.Gray)
+            Text("↓", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.fillMaxWidth(), color = purple)
+            Text("Нет загрузок", modifier = Modifier.fillMaxWidth())
+            Text("Вставьте ссылку, чтобы начать", modifier = Modifier.fillMaxWidth(), color = Color.Gray)
         } else recent.forEach { DownloadRow(it) }
     }
 }

@@ -79,7 +79,7 @@ class MediaRepository(private val context: Context) {
     }
 
     suspend fun cancel(entry: DownloadEntity) = withContext(Dispatchers.IO) {
-        entry.systemDownloadId?.let(system::remove)
+        entry.systemDownloadId?.let { system.remove(it) }
         database.downloadDao().upsert(entry.copy(state = "CANCELLED"))
     }
 }
