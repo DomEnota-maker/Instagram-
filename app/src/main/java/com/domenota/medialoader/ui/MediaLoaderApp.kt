@@ -52,6 +52,7 @@ import androidx.navigation.compose.rememberNavController
 import com.domenota.medialoader.BuildConfig
 import com.domenota.medialoader.core.provider.InstagramLinkParser
 import com.domenota.medialoader.core.provider.YouTubeLinkParser
+import com.domenota.medialoader.core.storage.StorageNaming
 import com.domenota.medialoader.ui.model.AnalysisUiState
 import com.domenota.medialoader.ui.model.toPreviewUi
 import com.domenota.medialoader.ui.model.toUi
@@ -144,7 +145,7 @@ fun MediaLoaderApp(
     }
     val requestDownload: () -> Unit = {
         pendingNames = preview.items.filter { it.id in preview.selectedIds }
-            .associate { it.id to it.originalName }
+            .associate { it.id to StorageNaming.editableStem(it.originalName) }
         if (pendingNames.isNotEmpty()) showNameDialog = true
     }
     if (showNameDialog) AlertDialog(
@@ -154,7 +155,7 @@ fun MediaLoaderApp(
             Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
                 preview.items.filter { it.id in preview.selectedIds }.forEach { item ->
                     OutlinedTextField(
-                        value = pendingNames[item.id] ?: item.originalName,
+                        value = pendingNames[item.id] ?: StorageNaming.editableStem(item.originalName),
                         onValueChange = { pendingNames = pendingNames + (item.id to it) },
                         label = { Text("Файл ${item.position ?: 1}") },
                         singleLine = true,
