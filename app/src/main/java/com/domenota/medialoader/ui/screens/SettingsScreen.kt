@@ -1,5 +1,15 @@
 package com.domenota.medialoader.ui.screens
 
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -16,20 +26,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Restore
-import androidx.compose.material3.Icon
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -39,23 +50,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import android.app.Activity
-import android.Manifest
-import android.content.Intent
-import android.net.Uri
-import android.content.pm.PackageManager
-import android.os.Build
-import android.provider.Settings
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.domenota.medialoader.core.logging.AppLog
 import com.domenota.medialoader.ui.components.AppCard
 import com.domenota.medialoader.ui.components.DownloadThumbnail
 import com.domenota.medialoader.ui.model.DownloadUiItem
@@ -108,6 +112,21 @@ fun SettingsScreen(
     val cookiesPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) onImportYouTubeCookies(uri)
     }
+    var logText by remember { mutableStateOf("") }
+    val logSaver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/markdown")) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use { writer ->
+                    writer.write(AppLog.exportMarkdown())
+                } ?: error("Не удалось открыть файл для записи")
+            }.onSuccess {
+                Toast.makeText(context, "Лог сохранён", Toast.LENGTH_SHORT).show()
+            }.onFailure { error ->
+                AppLog.e("Logs", "Log export failed: ${error.message}", error)
+                Toast.makeText(context, "Не удалось сохранить лог", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         systemNotificationsAllowed = allowed()
         if (granted) {
@@ -141,6 +160,9 @@ fun SettingsScreen(
     var sessionDialog by remember { mutableStateOf(false) }
     var sessionValue by remember { mutableStateOf("") }
     var sessionInvalid by remember { mutableStateOf(false) }
+    var logsDialog by remember { mutableStateOf(false) }
+    var logsUnlocked by remember { mutableStateOf(prefs.getBoolean("logs_unlocked", false)) }
+    var aboutTapCount by remember { mutableStateOf(0) }
 
     if (confirmSignOut) AlertDialog(onDismissRequest = { confirmSignOut = false },
         title = { Text("Выйти из Instagram?") },
@@ -224,6 +246,40 @@ fun SettingsScreen(
         text = { Text("История и файлы в корзине будут удалены. Сохранённые загрузки останутся на устройстве.") },
         confirmButton = { TextButton(onClick = { onClearHistory(); confirmClear = false }) { Text("Очистить") } },
         dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Отмена") } })
+
+    if (logsDialog) AlertDialog(
+        onDismissRequest = { logsDialog = false },
+        title = { Text("Логи") },
+        text = {
+            Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState())) {
+                Text(
+                    "Локальный журнал приложения. Известные cookie/session-поля при записи скрываются.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                Row {
+                    TextButton(onClick = { logText = AppLog.readText() }) { Text("Обновить") }
+                    TextButton(onClick = {
+                        AppLog.clear()
+                        logText = ""
+                    }) { Text("Очистить") }
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    logText.ifBlank { "Журнал пока пуст." },
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { logSaver.launch("MediaLoader_${versionName}_logs.md") }) {
+                Text("Сохранить .md")
+            }
+        },
+        dismissButton = { TextButton(onClick = { logsDialog = false }) { Text("Закрыть") } },
+    )
 
     Column(
         modifier = Modifier
@@ -319,7 +375,31 @@ fun SettingsScreen(
             icon = Icons.Rounded.Info,
             title = "О приложении",
             subtitle = "Версия $versionName",
+            onClick = {
+                if (!logsUnlocked) {
+                    aboutTapCount += 1
+                    if (aboutTapCount >= 5) {
+                        logsUnlocked = true
+                        aboutTapCount = 0
+                        prefs.edit().putBoolean("logs_unlocked", true).apply()
+                        AppLog.i("Settings", "Diagnostic logs unlocked")
+                        Toast.makeText(context, "Логи открыты", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
         )
+        if (logsUnlocked) {
+            Spacer(Modifier.height(10.dp))
+            SettingRow(
+                icon = Icons.Rounded.BugReport,
+                title = "Логи",
+                subtitle = "Диагностика ошибок и экспорт .md",
+                onClick = {
+                    logText = AppLog.readText()
+                    logsDialog = true
+                },
+            )
+        }
     }
 }
 
