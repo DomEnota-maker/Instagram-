@@ -22,8 +22,12 @@ data class StreamFormat(
 
 class ExtractionException(message: String, val kind: Kind = Kind.FAILED, cause: Throwable? = null) :
     Exception(message, cause) {
-    /** UNAVAILABLE: private, removed or blocked video. FAILED: anything that may work later. */
-    enum class Kind { UNAVAILABLE, FAILED }
+    /**
+     * UNAVAILABLE: private, removed or blocked video.
+     * AUTH_REQUIRED: YouTube explicitly requires an authenticated session.
+     * FAILED: anything else that may work later.
+     */
+    enum class Kind { UNAVAILABLE, AUTH_REQUIRED, FAILED }
 }
 
 /** Narrow seam in front of the extraction library (yt-dlp), so the library can be replaced. */
