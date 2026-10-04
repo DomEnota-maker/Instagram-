@@ -16,6 +16,17 @@ object StorageNaming {
         require(extension in setOf("jpg", "jpeg", "png", "mp4", "mp3", "m4a"))
         return "$stem.$extension"
     }
+
+    /**
+     * Text shown in name editors. The extension is owned by the media type and is therefore not
+     * something the user has to type or remove manually.
+     */
+    fun editableStem(originalName: String): String {
+        val trimmed = originalName.trim()
+        val dot = trimmed.lastIndexOf('.')
+        return if (dot > 0 && dot < trimmed.lastIndex) trimmed.substring(0, dot) else trimmed
+    }
+
     /** Default target relative to the public storage root. Read it only through StorageSettings. */
     const val DEFAULT_RELATIVE_DIRECTORY = "Download/MediaLoader/"
 
