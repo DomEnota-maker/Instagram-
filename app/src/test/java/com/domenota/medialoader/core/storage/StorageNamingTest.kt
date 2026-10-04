@@ -56,6 +56,21 @@ class StorageNamingTest {
         assertEquals("holiday_2.jpg", StorageNaming.normalizedMediaName("holiday_2.jpg", 2))
     }
 
+    @Test fun editableNamesHideTheManagedExtension() {
+        assertEquals("Страшная история", StorageNaming.editableStem("Страшная история.m4a"))
+        assertEquals("Видео", StorageNaming.editableStem("Видео.mp4"))
+        assertEquals("archive.part", StorageNaming.editableStem("archive.part.mp4"))
+        assertEquals("без расширения", StorageNaming.editableStem("без расширения"))
+        assertEquals(".hidden", StorageNaming.editableStem(".hidden"))
+    }
+
+    @Test fun customNameAddsTheOriginalExtensionExactlyOnce() {
+        assertEquals("Страшная история.m4a", StorageNaming.customName("Страшная история", "old.m4a"))
+        assertEquals("Страшная история.m4a", StorageNaming.customName("Страшная история.m4a", "old.m4a"))
+        assertEquals("Видео.mp4", StorageNaming.customName("Видео", "old.mp4"))
+        assertEquals("Видео.mp4", StorageNaming.customName("Видео.MP4", "old.mp4"))
+    }
+
     @Test fun defaultFolderStaysDownloadMediaLoader() {
         assertEquals("Download/MediaLoader/", StorageNaming.DEFAULT_RELATIVE_DIRECTORY)
     }
