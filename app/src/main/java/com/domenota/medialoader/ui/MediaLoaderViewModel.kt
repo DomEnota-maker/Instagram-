@@ -9,11 +9,13 @@ import com.domenota.medialoader.core.database.DownloadEntity
 import com.domenota.medialoader.core.model.MediaItem
 import com.domenota.medialoader.core.model.MediaType
 import com.domenota.medialoader.core.provider.ProviderException
+import com.domenota.medialoader.core.provider.YouTubeLinkParser
 import com.domenota.medialoader.core.storage.StorageNaming
-import com.domenota.medialoader.data.download.ActiveDownloadService
 import com.domenota.medialoader.data.MediaRepository
+import com.domenota.medialoader.data.download.ActiveDownloadService
 import com.domenota.medialoader.data.usecase.AnalyzeMedia
 import com.domenota.medialoader.data.usecase.QueueMedia
+import com.domenota.medialoader.data.youtube.YoutubeDlAndroid
 import com.domenota.medialoader.ui.model.AnalysisUiState
 import com.domenota.medialoader.ui.model.defaultSelectedIds
 import kotlinx.coroutines.CancellationException
@@ -50,43 +52,63 @@ class MediaLoaderViewModel(application: Application) : AndroidViewModel(applicat
         repository.hiddenCount.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
     val hiddenItems: StateFlow<List<DownloadEntity>> =
         repository.hiddenItems.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    private val _ytDlpUpdate = MutableStateFlow<String?>(null)
+
+    private val _ytDlpUpdate = MutableStateFlow(YoutubeDlAndroid(application).lastUpdateStatus)
     val ytDlpUpdate: StateFlow<String?> = _ytDlpUpdate.asStateFlow()
     private val _ytDlpUpdating = MutableStateFlow(false)
     val ytDlpUpdating: StateFlow<Boolean> = _ytDlpUpdating.asStateFlow()
+
     private val _youTubeCookies = MutableStateFlow(repository.hasYouTubeCookies)
     val youTubeCookies: StateFlow<Boolean> = _youTubeCookies.asStateFlow()
+    private val _youTubeSignedIn = MutableStateFlow(repository.hasYouTubeCookies)
+    val youTubeSignedIn: StateFlow<Boolean> = _youTubeSignedIn.asStateFlow()
+
     fun importYouTubeCookies(uri: Uri) {
         viewModelScope.launch {
             try {
                 repository.importYouTubeCookies(uri)
                 _youTubeCookies.value = true
+                _youTubeSignedIn.value = true
                 Toast.makeText(getApplication(), "Cookies YouTube импортированы", Toast.LENGTH_SHORT).show()
             } catch (error: Exception) {
-                Toast.makeText(getApplication(), error.message ?: "Не удалось импортировать cookies", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    getApplication(),
+                    error.message ?: "Не удалось импортировать cookies",
+                    Toast.LENGTH_LONG,
+                ).show()
             }
         }
     }
+
     fun clearYouTubeCookies() {
         repository.clearYouTubeCookies()
         _youTubeCookies.value = false
+        _youTubeSignedIn.value = false
     }
+
     fun updateYtDlp() {
         if (_ytDlpUpdating.value) return
-        if (downloads.value.any { it.state == com.domenota.medialoader.core.model.DownloadState.QUEUED ||
-                it.state == com.domenota.medialoader.core.model.DownloadState.RUNNING }) {
+        if (downloads.value.any {
+                it.state == com.domenota.medialoader.core.model.DownloadState.QUEUED ||
+                    it.state == com.domenota.medialoader.core.model.DownloadState.RUNNING
+            }) {
             _ytDlpUpdate.value = "Дождитесь завершения загрузок"
             return
         }
         _ytDlpUpdating.value = true
-        _ytDlpUpdate.value = null
         viewModelScope.launch {
-            try { _ytDlpUpdate.value = repository.updateYtDlp() }
-            catch (cancelled: CancellationException) { throw cancelled }
-            catch (error: Exception) { _ytDlpUpdate.value = "Не удалось обновить yt-dlp: ${error.message ?: "проверьте соединение"}" }
-            finally { _ytDlpUpdating.value = false }
+            try {
+                _ytDlpUpdate.value = repository.updateYtDlp()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                _ytDlpUpdate.value = "Не удалось обновить yt-dlp: ${error.message ?: "проверьте соединение"}"
+            } finally {
+                _ytDlpUpdating.value = false
+            }
         }
     }
+
     fun trashedUri(id: String): String? = repository.trashedUri(id)
 
     private val _signedIn = MutableStateFlow(repository.isLoggedIn())
@@ -95,18 +117,23 @@ class MediaLoaderViewModel(application: Application) : AndroidViewModel(applicat
     /** Folder text for Settings; comes from StorageManager, not from the UI. */
     private val _downloadFolder = MutableStateFlow(repository.storageDisplayPath)
     val downloadFolder: StateFlow<String> = _downloadFolder.asStateFlow()
+
     fun changeFolder(name: String) {
         runCatching { repository.setDownloadFolder(name) }
             .onSuccess { _downloadFolder.value = repository.storageDisplayPath }
     }
+
     fun selectFolder(uri: Uri) {
         runCatching { repository.selectDownloadFolder(uri) }
             .onSuccess { _downloadFolder.value = repository.storageDisplayPath }
-            .onFailure { Toast.makeText(getApplication(), "Не удалось выбрать папку", Toast.LENGTH_SHORT).show() }
+            .onFailure {
+                Toast.makeText(getApplication(), "Не удалось выбрать папку", Toast.LENGTH_SHORT).show()
+            }
     }
+
     fun needsLegacyStoragePermission(): Boolean = !repository.usesSelectedFolder
 
-    /** Public access first; the provider falls back to the saved session only when that fails. */
+    /** Public access first; providers fall back to their saved sessions only when needed. */
     fun analyze(url: String) {
         val link = url.trim()
         analysisJob?.cancel()
@@ -124,6 +151,8 @@ class MediaLoaderViewModel(application: Application) : AndroidViewModel(applicat
                 throw cancelled
             } catch (error: ProviderException) {
                 _signedIn.value = repository.isLoggedIn()
+                _youTubeSignedIn.value = repository.hasYouTubeCookies
+                _youTubeCookies.value = repository.hasYouTubeCookies
                 _preview.value = PreviewState(
                     analysis = if (error.reason == ProviderException.Reason.ACCESS_REQUIRED) {
                         AnalysisUiState.ACCESS_REQUIRED
@@ -149,12 +178,17 @@ class MediaLoaderViewModel(application: Application) : AndroidViewModel(applicat
 
     fun toggle(id: String) = _preview.update { state ->
         val item = state.items.firstOrNull { it.id == id }
-        val selected = if (id in state.selectedIds) state.selectedIds - id else {
-            // Video and its extracted audio are alternative downloads in this picker.
-            val alternatives = if (item?.type == MediaType.VIDEO || item?.type == MediaType.AUDIO)
-                state.items.filter { it.providerId == item.providerId &&
-                    (it.type == MediaType.VIDEO || it.type == MediaType.AUDIO) }
-                    .map { it.id }.toSet() else emptySet()
+        val selected = if (id in state.selectedIds) {
+            state.selectedIds - id
+        } else {
+            val alternatives = if (item?.type == MediaType.VIDEO || item?.type == MediaType.AUDIO) {
+                state.items.filter {
+                    it.providerId == item.providerId &&
+                        (it.type == MediaType.VIDEO || it.type == MediaType.AUDIO)
+                }.map { it.id }.toSet()
+            } else {
+                emptySet()
+            }
             (state.selectedIds - alternatives) + id
         }
         state.copy(selectedIds = selected)
@@ -162,13 +196,17 @@ class MediaLoaderViewModel(application: Application) : AndroidViewModel(applicat
 
     fun toggleAllPhotos() = _preview.update { state ->
         val photoIds = state.items.filter { it.type == MediaType.PHOTO }.map { it.id }.toSet()
-        state.copy(selectedIds = if (photoIds.all { it in state.selectedIds })
-            state.selectedIds - photoIds else state.selectedIds + photoIds)
+        state.copy(
+            selectedIds = if (photoIds.all { it in state.selectedIds }) {
+                state.selectedIds - photoIds
+            } else {
+                state.selectedIds + photoIds
+            },
+        )
     }
 
     fun showMessage(text: String) = _preview.update { it.copy(message = text) }
 
-    /** Items are queued in list order, so a video is always processed before its audio. */
     fun downloadSelected(onQueued: () -> Unit) {
         downloadSelected(emptyMap(), onQueued)
     }
@@ -178,9 +216,15 @@ class MediaLoaderViewModel(application: Application) : AndroidViewModel(applicat
         val chosen = state.items.filter { it.id in state.selectedIds }
         if (chosen.isEmpty() || state.enqueuing) return
         val renamed = try {
-            chosen.map { item -> item.copy(originalName =
-                StorageNaming.customName(names[item.id] ?: item.originalName, item.originalName),
-                customName = true) }
+            chosen.map { item ->
+                item.copy(
+                    originalName = StorageNaming.customName(
+                        names[item.id] ?: item.originalName,
+                        item.originalName,
+                    ),
+                    customName = true,
+                )
+            }
         } catch (_: IllegalArgumentException) {
             showMessage("Проверьте имя файла")
             return
@@ -194,7 +238,7 @@ class MediaLoaderViewModel(application: Application) : AndroidViewModel(applicat
                 onQueued()
             } catch (cancelled: CancellationException) {
                 throw cancelled
-            } catch (error: Exception) {
+            } catch (_: Exception) {
                 _preview.update {
                     it.copy(enqueuing = false, message = "Не удалось добавить загрузку. Повторите.")
                 }
@@ -205,29 +249,70 @@ class MediaLoaderViewModel(application: Application) : AndroidViewModel(applicat
     fun cancelDownload(id: String) {
         viewModelScope.launch { repository.cancel(id) }
     }
-    fun hideDownload(id: String) { viewModelScope.launch {
-        try { repository.hide(id) }
-        catch (_: Exception) { Toast.makeText(getApplication(), "Не удалось удалить файл", Toast.LENGTH_SHORT).show() }
-    } }
-    fun retryDownload(id: String) { viewModelScope.launch { repository.retry(id) } }
-    fun renameDownload(id: String, name: String) { viewModelScope.launch {
-        try { repository.rename(id, name) }
-        catch (_: Exception) { Toast.makeText(getApplication(), "Не удалось переименовать файл", Toast.LENGTH_SHORT).show() }
-    } }
-    fun restoreHidden(ids: Set<String>) { viewModelScope.launch {
-        try { repository.restoreHidden(ids) }
-        catch (_: Exception) { Toast.makeText(getApplication(), "Не удалось восстановить файл", Toast.LENGTH_SHORT).show() }
-    } }
-    fun clearHidden() { viewModelScope.launch {
-        try { repository.clearHidden() }
-        catch (_: Exception) { Toast.makeText(getApplication(), "Не удалось очистить корзину", Toast.LENGTH_SHORT).show() }
-    } }
-    fun clearHistory() { viewModelScope.launch { repository.clearHistory() } }
+
+    fun hideDownload(id: String) {
+        viewModelScope.launch {
+            try {
+                repository.hide(id)
+            } catch (_: Exception) {
+                Toast.makeText(getApplication(), "Не удалось удалить файл", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun retryDownload(id: String) {
+        viewModelScope.launch { repository.retry(id) }
+    }
+
+    fun renameDownload(id: String, name: String) {
+        viewModelScope.launch {
+            try {
+                repository.rename(id, name)
+            } catch (_: Exception) {
+                Toast.makeText(getApplication(), "Не удалось переименовать файл", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun restoreHidden(ids: Set<String>) {
+        viewModelScope.launch {
+            try {
+                repository.restoreHidden(ids)
+            } catch (_: Exception) {
+                Toast.makeText(getApplication(), "Не удалось восстановить файл", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun clearHidden() {
+        viewModelScope.launch {
+            try {
+                repository.clearHidden()
+            } catch (_: Exception) {
+                Toast.makeText(getApplication(), "Не удалось очистить корзину", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun clearHistory() {
+        viewModelScope.launch { repository.clearHistory() }
+    }
 
     fun onLoginFinished(success: Boolean) {
         _signedIn.value = repository.isLoggedIn()
         val state = _preview.value
-        if (success && state.analysis == AnalysisUiState.ACCESS_REQUIRED && state.url.isNotBlank()) {
+        if (success && state.analysis == AnalysisUiState.ACCESS_REQUIRED && state.url.isNotBlank() &&
+            YouTubeLinkParser.parse(state.url) == null) {
+            analyze(state.url)
+        }
+    }
+
+    fun onYouTubeLoginFinished(success: Boolean) {
+        _youTubeSignedIn.value = repository.hasYouTubeCookies
+        _youTubeCookies.value = repository.hasYouTubeCookies
+        val state = _preview.value
+        if (success && repository.hasYouTubeCookies && state.analysis == AnalysisUiState.ACCESS_REQUIRED &&
+            state.url.isNotBlank() && YouTubeLinkParser.parse(state.url) != null) {
             analyze(state.url)
         }
     }
@@ -237,10 +322,19 @@ class MediaLoaderViewModel(application: Application) : AndroidViewModel(applicat
         _signedIn.value = false
     }
 
+    fun logoutYouTube() {
+        repository.clearYouTubeCookies()
+        _youTubeCookies.value = false
+        _youTubeSignedIn.value = false
+    }
+
     fun importSessionId(value: String): Boolean = runCatching {
         repository.importSessionId(value)
         _signedIn.value = true
         val state = _preview.value
-        if (state.analysis == AnalysisUiState.ACCESS_REQUIRED && state.url.isNotBlank()) analyze(state.url)
+        if (state.analysis == AnalysisUiState.ACCESS_REQUIRED && state.url.isNotBlank() &&
+            YouTubeLinkParser.parse(state.url) == null) {
+            analyze(state.url)
+        }
     }.isSuccess
 }
