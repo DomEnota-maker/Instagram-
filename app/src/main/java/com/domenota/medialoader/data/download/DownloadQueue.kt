@@ -1,6 +1,7 @@
 package com.domenota.medialoader.data.download
 
 import com.domenota.medialoader.core.database.DownloadEntity
+import com.domenota.medialoader.core.logging.AppLog
 import com.domenota.medialoader.core.model.DownloadState
 import com.domenota.medialoader.core.model.DownloadTask
 import com.domenota.medialoader.core.model.MediaItem
@@ -58,7 +59,9 @@ class DownloadQueue(
                         photos.addLast(scope.launch {
                             try { process(orderedTask) }
                             catch (cancelled: CancellationException) { throw cancelled }
-                            catch (_: Exception) { /* Continue with the other photo tasks. */ }
+                            catch (error: Exception) {
+                                AppLog.e("Download", "Parallel photo task failed · id=${orderedTask.id}", error)
+                            }
                             finally { finished.complete(Unit) }
                         })
                     } else {
@@ -68,8 +71,9 @@ class DownloadQueue(
                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
-                } catch (_: Exception) {
+                } catch (error: Exception) {
                     // A storage/database error must not stop the worker: the next task still runs.
+                    AppLog.e("Download", "Queue worker error · id=${task.id}", error)
                 }
             }
         }
@@ -100,6 +104,10 @@ class DownloadQueue(
             )
             history.save(entity)
             pending.send(DownloadTask(id = entity.id, item = item, fileName = fileName))
+            AppLog.i(
+                "Download",
+                "Queued · id=${entity.id} · provider=${entity.providerId} · type=${entity.mediaType} · name=${entity.originalName}",
+            )
             entity
         }
         queued.firstOrNull()?.let { refreshBatch(it) }
@@ -121,6 +129,7 @@ class DownloadQueue(
         pending.send(DownloadTask(queued.id, MediaItem(queued.id, queued.providerId,
             queued.mediaType, queued.originalName, url, previewUrl = queued.previewUrl,
             sizeBytes = queued.sizeBytes, formatSelector = queued.formatSelector), name))
+        AppLog.i("Download", "Retry queued · id=${queued.id} · provider=${queued.providerId} · name=${queued.originalName}")
         refreshBatch(queued)
     }
 
@@ -128,11 +137,14 @@ class DownloadQueue(
     suspend fun cancel(id: String) {
         enqueueLock.withLock {
             val job = running[id]
-            if (job != null) job.cancel()
-            else {
+            if (job != null) {
+                AppLog.i("Download", "Cancel running · id=$id")
+                job.cancel()
+            } else {
                 val entity = history.byId(id)
                 if (entity?.state == DownloadState.QUEUED) {
                     history.save(entity.copy(state = DownloadState.CANCELLED))
+                    AppLog.i("Download", "Cancel queued · id=$id")
                     refreshBatch(entity)
                 }
             }
@@ -143,9 +155,10 @@ class DownloadQueue(
     private suspend fun recoverInterruptedLocked() {
         if (recovered) return
         recovered = true
-        history.all()
+        val interrupted = history.all()
             .filter { it.state == DownloadState.QUEUED || it.state == DownloadState.RUNNING }
-            .forEach { history.save(it.copy(state = DownloadState.FAILED, errorMessage = INTERRUPTED)) }
+        interrupted.forEach { history.save(it.copy(state = DownloadState.FAILED, errorMessage = INTERRUPTED)) }
+        if (interrupted.isNotEmpty()) AppLog.w("Download", "Recovered interrupted tasks · count=${interrupted.size}")
     }
 
     private suspend fun process(task: DownloadTask) {
@@ -157,6 +170,7 @@ class DownloadQueue(
             else {
                 running[task.id] = job
                 history.save(entity.copy(state = DownloadState.RUNNING, errorMessage = null))
+                AppLog.i("Download", "Started · id=${task.id} · provider=${entity.providerId} · name=${entity.originalName}")
                 refreshBatch(entity)
                 true
             }
@@ -187,11 +201,14 @@ class DownloadQueue(
                     errorMessage = null,
                 )
             }
+            AppLog.i("Download", "Completed · id=${task.id} · bytes=${result.sizeBytes ?: -1}")
         } catch (cancelled: CancellationException) {
             withContext(NonCancellable) { update(task.id) { it.copy(state = DownloadState.CANCELLED) } }
+            AppLog.i("Download", "Cancelled · id=${task.id}")
             throw cancelled
         } catch (error: Exception) {
             val message = (error as? DownloadFailure)?.message ?: GENERIC_FAILURE
+            AppLog.e("Download", "Failed · id=${task.id} · message=$message", error)
             update(task.id) { it.copy(state = DownloadState.FAILED, errorMessage = message) }
         }
     }
