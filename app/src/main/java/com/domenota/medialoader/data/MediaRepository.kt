@@ -14,6 +14,7 @@ import com.domenota.medialoader.core.provider.DefaultMediaResolver
 import com.domenota.medialoader.core.provider.InstagramProvider
 import com.domenota.medialoader.core.provider.MediaResolver
 import com.domenota.medialoader.core.provider.ProviderException
+import com.domenota.medialoader.core.provider.VkProvider
 import com.domenota.medialoader.core.provider.YouTubeProvider
 import com.domenota.medialoader.data.download.AudioDownloadEngine
 import com.domenota.medialoader.data.download.AudioExtractor
@@ -23,7 +24,9 @@ import com.domenota.medialoader.data.download.RoutingDownloadEngine
 import com.domenota.medialoader.data.download.HttpDownloadEngine
 import com.domenota.medialoader.data.download.mediaHeaders
 import com.domenota.medialoader.data.download.ActiveDownloadService
+import com.domenota.medialoader.data.download.VkDownloadEngine
 import com.domenota.medialoader.data.download.YouTubeDownloadEngine
+import com.domenota.medialoader.data.vk.VkYtDlpRuntime
 import com.domenota.medialoader.data.youtube.YoutubeDlAndroid
 import com.domenota.medialoader.core.storage.StorageNaming
 import com.domenota.medialoader.data.storage.StorageManager
@@ -48,6 +51,7 @@ class MediaRepository private constructor(context: Context) {
     val sessions = SessionStore(appContext)
     private val storage = StorageManager(appContext, StorageSettings(appContext))
     private val youtubeDl = YoutubeDlAndroid(appContext)
+    private val vkDl = VkYtDlpRuntime(appContext)
     private val history = HistoryRepository(
         Room.databaseBuilder(appContext, HistoryDatabase::class.java, "media-loader.db")
             .addMigrations(object : Migration(1, 2) {
@@ -69,8 +73,13 @@ class MediaRepository private constructor(context: Context) {
                 }
             }).build().downloadDao(),
     )
-    private val resolver: MediaResolver =
-        DefaultMediaResolver(listOf(InstagramProvider(cookies = { sessions.cookies() }), YouTubeProvider(youtubeDl)))
+    private val resolver: MediaResolver = DefaultMediaResolver(
+        listOf(
+            InstagramProvider(cookies = { sessions.cookies() }),
+            YouTubeProvider(youtubeDl),
+            VkProvider(vkDl),
+        ),
+    )
     private val notifier = DownloadNotifier(appContext)
     private val queue = DownloadQueue(
         history = history,
@@ -78,6 +87,7 @@ class MediaRepository private constructor(context: Context) {
             media = HttpDownloadEngine(appContext, storage, sessions::cookies),
             audio = AudioDownloadEngine(AudioExtractor(appContext, storage, sessions::cookies)),
             youtube = YouTubeDownloadEngine(appContext, storage, youtubeDl),
+            vk = VkDownloadEngine(appContext, storage, vkDl),
         ),
         existingNames = storage::existingNames,
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
@@ -133,6 +143,8 @@ class MediaRepository private constructor(context: Context) {
     val hasYouTubeCookies: Boolean get() = youtubeDl.hasCookies
     fun importYouTubeCookies(uri: Uri) = youtubeDl.importCookies(uri)
     fun clearYouTubeCookies() = youtubeDl.clearCookies()
+    val hasVkCookies: Boolean get() = vkDl.hasCookies
+    fun clearVkCookies() = vkDl.clearCookies()
 
     fun importSessionId(value: String) = sessions.saveManualSessionId(value)
 
@@ -142,7 +154,7 @@ class MediaRepository private constructor(context: Context) {
     suspend fun resolve(url: String): List<MediaItem> = try {
         coroutineScope {
             resolver.resolve(url).map { item -> async {
-                if (item.providerId == YouTubeProvider.ID) item
+                if (item.providerId == YouTubeProvider.ID || item.providerId == VkProvider.ID) item
                 else if (item.type == MediaType.AUDIO) item.copy(
                     originalName = StorageNaming.normalizedMediaName(item.originalName, item.position))
                 else {
@@ -160,7 +172,12 @@ class MediaRepository private constructor(context: Context) {
         }
     } catch (error: ProviderException) {
         // A session that still gets ACCESS_REQUIRED is expired: drop it so the UI offers sign-in again.
-        if (error.providerId == InstagramProvider.ID && error.reason == ProviderException.Reason.ACCESS_REQUIRED && sessions.isLoggedIn()) sessions.clear()
+        if (error.providerId == InstagramProvider.ID && error.reason == ProviderException.Reason.ACCESS_REQUIRED && sessions.isLoggedIn()) {
+            sessions.clear()
+        }
+        if (error.providerId == VkProvider.ID && error.reason == ProviderException.Reason.ACCESS_REQUIRED && vkDl.hasCookies) {
+            vkDl.clearCookies()
+        }
         throw error
     }
 
