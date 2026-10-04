@@ -17,7 +17,7 @@ import androidx.activity.ComponentActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.domenota.medialoader.core.logging.AppLog
-import com.domenota.medialoader.data.MediaRepository
+import com.domenota.medialoader.data.youtube.YoutubeDlAndroid
 
 /**
  * Experimental YouTube web sign-in. Credentials stay inside Google's/YouTube's page; MediaLoader
@@ -50,7 +50,10 @@ class YouTubeLoginActivity : ComponentActivity() {
             textSize = 14f
             setPadding(32, 24, 32, 24)
         }
-        root.addView(hint, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        root.addView(
+            hint,
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT),
+        )
 
         val view = WebView(this)
         web = view
@@ -104,8 +107,7 @@ class YouTubeLoginActivity : ComponentActivity() {
         val youtube = manager.getCookie("https://www.youtube.com")
         val google = manager.getCookie("https://www.google.com")
         val accounts = manager.getCookie("https://accounts.google.com")
-        val saved = MediaRepository.get(applicationContext)
-            .saveYouTubeWebSession(youtube, google, accounts)
+        val saved = YoutubeDlAndroid(applicationContext).saveWebSession(youtube, google, accounts)
         if (!saved) return false
 
         finished = true
