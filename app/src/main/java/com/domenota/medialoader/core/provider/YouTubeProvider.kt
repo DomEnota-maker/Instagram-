@@ -16,7 +16,9 @@ class YouTubeProvider(private val extractor: StreamExtractor) : MediaProvider {
 
     override suspend fun resolve(url: String): List<MediaItem> {
         val link = YouTubeLinkParser.parse(url) ?: throw ProviderException(
-            ProviderException.Reason.UNSUPPORTED, "Нужна ссылка на видео YouTube.", ID,
+            ProviderException.Reason.UNSUPPORTED,
+            "Нужна ссылка на видео YouTube.",
+            ID,
         )
         val info = try {
             extractor.extract(link.canonicalUrl())
@@ -24,13 +26,19 @@ class YouTubeProvider(private val extractor: StreamExtractor) : MediaProvider {
             throw cancelled
         } catch (error: ExtractionException) {
             throw ProviderException(
-                if (error.kind == ExtractionException.Kind.UNAVAILABLE) ProviderException.Reason.UNSUPPORTED
-                else ProviderException.Reason.TEMPORARY_FAILURE,
-                error.message ?: "Не удалось получить данные видео.", ID,
+                when (error.kind) {
+                    ExtractionException.Kind.UNAVAILABLE -> ProviderException.Reason.UNSUPPORTED
+                    ExtractionException.Kind.AUTH_REQUIRED -> ProviderException.Reason.ACCESS_REQUIRED
+                    ExtractionException.Kind.FAILED -> ProviderException.Reason.TEMPORARY_FAILURE
+                },
+                error.message ?: "Не удалось получить данные видео.",
+                ID,
             )
         } catch (_: Exception) {
             throw ProviderException(
-                ProviderException.Reason.TEMPORARY_FAILURE, "Не удалось получить данные видео YouTube.", ID,
+                ProviderException.Reason.TEMPORARY_FAILURE,
+                "Не удалось получить данные видео YouTube.",
+                ID,
             )
         }
         return itemsOf(link.canonicalUrl(), info)
@@ -43,7 +51,9 @@ class YouTubeProvider(private val extractor: StreamExtractor) : MediaProvider {
         val videos = info.formats.filter { it.hasVideo && it.height != null }
         val heights = videos.mapNotNull { it.height }.distinct().sortedDescending()
         if (heights.isEmpty() && audioOnly.isEmpty()) throw ProviderException(
-            ProviderException.Reason.UNSUPPORTED, "YouTube не вернул доступных форматов для этого видео.", ID,
+            ProviderException.Reason.UNSUPPORTED,
+            "YouTube не вернул доступных форматов для этого видео.",
+            ID,
         )
         val defaultHeight = heights.firstOrNull { it <= YouTubeFormats.MAX_DEFAULT_HEIGHT } ?: heights.lastOrNull()
 
