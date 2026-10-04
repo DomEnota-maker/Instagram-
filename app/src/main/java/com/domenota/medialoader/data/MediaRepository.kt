@@ -130,6 +130,9 @@ class MediaRepository private constructor(context: Context) {
 
     fun isLoggedIn(): Boolean = sessions.isLoggedIn()
     suspend fun updateYtDlp(): String = youtubeDl.update()
+    val hasYouTubeCookies: Boolean get() = youtubeDl.hasCookies
+    fun importYouTubeCookies(uri: Uri) = youtubeDl.importCookies(uri)
+    fun clearYouTubeCookies() = youtubeDl.clearCookies()
 
     fun importSessionId(value: String) = sessions.saveManualSessionId(value)
 

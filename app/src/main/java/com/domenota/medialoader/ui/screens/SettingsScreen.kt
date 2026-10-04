@@ -45,6 +45,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import android.app.Activity
 import android.Manifest
 import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
@@ -77,6 +78,9 @@ fun SettingsScreen(
     ytDlpUpdate: String? = null,
     ytDlpUpdating: Boolean = false,
     onUpdateYtDlp: () -> Unit = {},
+    hasYouTubeCookies: Boolean = false,
+    onImportYouTubeCookies: (Uri) -> Unit = {},
+    onClearYouTubeCookies: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -100,6 +104,9 @@ fun SettingsScreen(
             notificationsEnabled = true
             prefs.edit().putBoolean("notifications", true).apply()
         }
+    }
+    val cookiesPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) onImportYouTubeCookies(uri)
     }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         systemNotificationsAllowed = allowed()
@@ -258,6 +265,15 @@ fun SettingsScreen(
             subtitle = ytDlpUpdate ?: "Обновление поддержки YouTube через интернет",
             onClick = if (ytDlpUpdating) null else onUpdateYtDlp,
         )
+        Spacer(Modifier.height(10.dp))
+        SettingRow(icon = Icons.Rounded.AccountCircle,
+            title = "Cookies YouTube",
+            subtitle = if (hasYouTubeCookies) "Файл импортирован · нажмите, чтобы заменить" else
+                "Для видео, которым требуется вход · файл Netscape",
+            onClick = { cookiesPicker.launch(arrayOf("text/plain", "application/octet-stream")) })
+        if (hasYouTubeCookies) {
+            TextButton(onClick = onClearYouTubeCookies) { Text("Удалить cookies YouTube") }
+        }
         Spacer(Modifier.height(10.dp))
         SettingRow(
             icon = Icons.Rounded.Notifications,

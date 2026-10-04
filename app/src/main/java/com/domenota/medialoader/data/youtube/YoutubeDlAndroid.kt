@@ -1,6 +1,7 @@
 package com.domenota.medialoader.data.youtube
 
 import android.content.Context
+import android.net.Uri
 import com.domenota.medialoader.core.provider.ExtractionException
 import com.domenota.medialoader.core.provider.StreamExtractor
 import com.domenota.medialoader.core.provider.StreamInfo
@@ -34,6 +35,26 @@ class YoutubeDlAndroid(context: Context) : StreamExtractor, YtDlpDownloader {
     private val appContext = context.applicationContext
     private val initLock = Mutex()
     @Volatile private var ready = false
+    private val cookiesFile get() = File(appContext.filesDir, "youtube-cookies.txt")
+    val hasCookies get() = cookiesFile.exists()
+
+    fun importCookies(uri: Uri) {
+        val temporary = File(appContext.filesDir, "youtube-cookies.tmp")
+        try {
+            val input = appContext.contentResolver.openInputStream(uri)
+                ?: throw IllegalArgumentException("Не удалось открыть файл")
+            input.use { source -> temporary.outputStream().use { target ->
+                val copied = source.copyTo(target)
+                require(copied in 1..MAX_COOKIE_BYTES) { "Файл cookies пустой или слишком большой" }
+            } }
+            val header = temporary.bufferedReader().use { it.readLine().orEmpty() }
+            require(header.startsWith("# Netscape HTTP Cookie File") ||
+                header.startsWith("# HTTP Cookie File")) { "Нужен файл cookies в формате Netscape" }
+            require(temporary.renameTo(cookiesFile)) { "Не удалось сохранить cookies" }
+        } finally { temporary.delete() }
+    }
+
+    fun clearCookies() { cookiesFile.delete() }
 
     /** First use unpacks the bundled Python and ffmpeg, which takes a few seconds. */
     private suspend fun ensureReady() {
@@ -69,6 +90,7 @@ class YoutubeDlAndroid(context: Context) : StreamExtractor, YtDlpDownloader {
             addOption("-J")
             addOption("--no-playlist")
             addOption("--no-warnings")
+            if (hasCookies) addOption("--cookies", cookiesFile.absolutePath)
         }
         val output = try {
             withContext(Dispatchers.IO) { YoutubeDL.getInstance().execute(request).out }
@@ -95,6 +117,7 @@ class YoutubeDlAndroid(context: Context) : StreamExtractor, YtDlpDownloader {
             addOption("--no-playlist")
             addOption("--no-mtime")
             addOption("--no-warnings")
+            if (hasCookies) addOption("--cookies", cookiesFile.absolutePath)
             addOption("-o", File(targetDir, "out.%(ext)s").absolutePath)
             if (audioOnly) {
                 addOption("-f", YouTubeFormats.AUDIO_SELECTOR)
@@ -159,6 +182,7 @@ class YoutubeDlAndroid(context: Context) : StreamExtractor, YtDlpDownloader {
     }
 
     private companion object {
+        const val MAX_COOKIE_BYTES = 2L * 1024 * 1024
         val UNAVAILABLE_MARKERS = listOf(
             "Private video", "Video unavailable", "This video is not available", "members-only",
             "has been removed", "is no longer available", "blocked it",

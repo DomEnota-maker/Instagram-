@@ -301,6 +301,9 @@ fun MediaLoaderApp(
                     ytDlpUpdate = viewModel.ytDlpUpdate.collectAsStateWithLifecycle().value,
                     ytDlpUpdating = viewModel.ytDlpUpdating.collectAsStateWithLifecycle().value,
                     onUpdateYtDlp = viewModel::updateYtDlp,
+                    hasYouTubeCookies = viewModel.youTubeCookies.collectAsStateWithLifecycle().value,
+                    onImportYouTubeCookies = viewModel::importYouTubeCookies,
+                    onClearYouTubeCookies = viewModel::clearYouTubeCookies,
                 )
             }
             composable(PREVIEW_ROUTE) {

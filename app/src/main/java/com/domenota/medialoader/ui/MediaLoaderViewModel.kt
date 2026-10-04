@@ -54,6 +54,23 @@ class MediaLoaderViewModel(application: Application) : AndroidViewModel(applicat
     val ytDlpUpdate: StateFlow<String?> = _ytDlpUpdate.asStateFlow()
     private val _ytDlpUpdating = MutableStateFlow(false)
     val ytDlpUpdating: StateFlow<Boolean> = _ytDlpUpdating.asStateFlow()
+    private val _youTubeCookies = MutableStateFlow(repository.hasYouTubeCookies)
+    val youTubeCookies: StateFlow<Boolean> = _youTubeCookies.asStateFlow()
+    fun importYouTubeCookies(uri: Uri) {
+        viewModelScope.launch {
+            try {
+                repository.importYouTubeCookies(uri)
+                _youTubeCookies.value = true
+                Toast.makeText(getApplication(), "Cookies YouTube импортированы", Toast.LENGTH_SHORT).show()
+            } catch (error: Exception) {
+                Toast.makeText(getApplication(), error.message ?: "Не удалось импортировать cookies", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+    fun clearYouTubeCookies() {
+        repository.clearYouTubeCookies()
+        _youTubeCookies.value = false
+    }
     fun updateYtDlp() {
         if (_ytDlpUpdating.value) return
         if (downloads.value.any { it.state == com.domenota.medialoader.core.model.DownloadState.QUEUED ||
