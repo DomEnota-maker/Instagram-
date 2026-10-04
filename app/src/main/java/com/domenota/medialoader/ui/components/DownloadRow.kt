@@ -202,56 +202,57 @@ private fun SourceBadge(providerId: String?) {
         "youtube" -> Box(
             modifier = Modifier
                 .padding(2.dp)
-                .size(19.dp)
-                .background(Color(0xFFFF0033), RoundedCornerShape(5.dp)),
+                .size(20.dp)
+                .background(Color(0xFFFF0033), RoundedCornerShape(5.5.dp)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = Icons.Rounded.PlayArrow,
                 contentDescription = "YouTube",
                 tint = Color.White,
-                modifier = Modifier.size(14.dp),
+                modifier = Modifier.size(15.dp),
             )
         }
         "instagram" -> Box(
             modifier = Modifier
                 .padding(2.dp)
-                .size(19.dp)
+                .size(20.dp)
                 .background(
                     brush = Brush.linearGradient(
                         colors = listOf(
-                            Color(0xFFFFC107),
-                            Color(0xFFF44336),
-                            Color(0xFFE1306C),
-                            Color(0xFF833AB4),
+                            Color(0xFFFEDA75),
+                            Color(0xFFFA7E1E),
+                            Color(0xFFD62976),
+                            Color(0xFF962FBF),
+                            Color(0xFF4F5BD5),
                         ),
-                        start = Offset(0f, 19f),
-                        end = Offset(19f, 0f),
+                        start = Offset(0f, 20f),
+                        end = Offset(20f, 0f),
                     ),
-                    shape = RoundedCornerShape(5.dp),
+                    shape = RoundedCornerShape(5.5.dp),
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Canvas(Modifier.size(13.dp)) {
-                val stroke = 1.35.dp.toPx()
+            Canvas(Modifier.size(16.dp)) {
+                val stroke = 1.8.dp.toPx()
                 val inset = stroke / 2f
                 drawRoundRect(
                     color = Color.White,
                     topLeft = Offset(inset, inset),
                     size = Size(size.width - stroke, size.height - stroke),
-                    cornerRadius = CornerRadius(3.2.dp.toPx(), 3.2.dp.toPx()),
+                    cornerRadius = CornerRadius(4.1.dp.toPx(), 4.1.dp.toPx()),
                     style = Stroke(width = stroke),
                 )
                 drawCircle(
                     color = Color.White,
-                    radius = size.minDimension * 0.22f,
+                    radius = size.minDimension * 0.23f,
                     center = center,
                     style = Stroke(width = stroke),
                 )
                 drawCircle(
                     color = Color.White,
-                    radius = size.minDimension * 0.075f,
-                    center = Offset(size.width * 0.75f, size.height * 0.25f),
+                    radius = size.minDimension * 0.085f,
+                    center = Offset(size.width * 0.74f, size.height * 0.26f),
                 )
             }
         }
