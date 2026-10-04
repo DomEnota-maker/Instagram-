@@ -23,7 +23,7 @@ object VkLinkParser {
         if (!supportedPath && !supportedQuery) return null
 
         val canonical = runCatching {
-            URI(uri.scheme.lowercase(), null, uri.host.lowercase(), uri.port, uri.path, uri.query, null).toString()
+            URI(uri.scheme.lowercase(), null, host, uri.port, uri.path, uri.query, null).toString()
         }.getOrElse { raw.trim() }
         return VkLink(canonical)
     }
