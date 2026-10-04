@@ -7,42 +7,42 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.unit.dp
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -88,6 +88,10 @@ fun MediaLoaderApp(
     val preview by viewModel.preview.collectAsStateWithLifecycle()
     val downloads by viewModel.downloads.collectAsStateWithLifecycle()
     val signedIn by viewModel.signedIn.collectAsStateWithLifecycle()
+    val youtubeSignedIn by viewModel.youTubeSignedIn.collectAsStateWithLifecycle()
+    val youtubeCookies by viewModel.youTubeCookies.collectAsStateWithLifecycle()
+    val ytDlpUpdate by viewModel.ytDlpUpdate.collectAsStateWithLifecycle()
+    val ytDlpUpdating by viewModel.ytDlpUpdating.collectAsStateWithLifecycle()
     val hiddenCount by viewModel.hiddenCount.collectAsStateWithLifecycle()
     val hiddenItems by viewModel.hiddenItems.collectAsStateWithLifecycle()
     val downloadFolder by viewModel.downloadFolder.collectAsStateWithLifecycle()
@@ -109,6 +113,16 @@ fun MediaLoaderApp(
         viewModel.onLoginFinished(result.resultCode == Activity.RESULT_OK)
     }
     val startLogin: () -> Unit = { loginLauncher.launch(Intent(context, LoginActivity::class.java)) }
+    val youtubeLoginLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        viewModel.onYouTubeLoginFinished(result.resultCode == Activity.RESULT_OK)
+    }
+    val startYouTubeLogin: () -> Unit = {
+        youtubeLoginLauncher.launch(Intent(context, YouTubeLoginActivity::class.java))
+    }
+    val startLoginForCurrentUrl: () -> Unit = {
+        val target = preview.url.ifBlank { pendingUrl }
+        if (YouTubeLinkParser.parse(target) != null) startYouTubeLogin() else startLogin()
+    }
 
     // Android 8–9 need the legacy storage permission for the public Downloads folder.
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -122,9 +136,9 @@ fun MediaLoaderApp(
         if (uri != null) viewModel.selectFolder(uri)
     }
     val confirmDownload: () -> Unit = {
-        val needsPermission = Build.VERSION.SDK_INT < 29 && viewModel.needsLegacyStoragePermission() && ContextCompat.checkSelfPermission(
-            context, Manifest.permission.WRITE_EXTERNAL_STORAGE,
-        ) != PackageManager.PERMISSION_GRANTED
+        val needsPermission = Build.VERSION.SDK_INT < 29 && viewModel.needsLegacyStoragePermission() &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
+            PackageManager.PERMISSION_GRANTED
         if (needsPermission) permissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         else viewModel.downloadSelected(pendingNames, goToDownloads)
     }
@@ -148,9 +162,11 @@ fun MediaLoaderApp(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { showNameDialog = false; confirmDownload() }) {
-            Text("Скачать")
-        } },
+        confirmButton = {
+            TextButton(onClick = { showNameDialog = false; confirmDownload() }) {
+                Text("Скачать")
+            }
+        },
         dismissButton = { TextButton(onClick = { showNameDialog = false }) { Text("Отмена") } },
     )
     val openDownload: (String) -> Unit = { id ->
@@ -173,7 +189,7 @@ fun MediaLoaderApp(
 
     // Read only while the app is visible. Never replace a link the user typed herself.
     DisposableEffect(lifecycleOwner, currentRoute, sharedText) {
-        fun importInstagramLink() {
+        fun importSupportedLink() {
             if (currentRoute != AppDestination.Home.route || sharedText != null) return
             val firstCheck = !checkedClipboardAtLaunch
             checkedClipboardAtLaunch = true
@@ -191,10 +207,10 @@ fun MediaLoaderApp(
             }
         }
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) importInstagramLink()
+            if (event == Lifecycle.Event.ON_RESUME) importSupportedLink()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) importInstagramLink()
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) importSupportedLink()
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
@@ -208,19 +224,12 @@ fun MediaLoaderApp(
                             selected = currentRoute == destination.route,
                             onClick = {
                                 navController.navigate(destination.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                                     launchSingleTop = true
                                     restoreState = true
                                 }
                             },
-                            icon = {
-                                Icon(
-                                    imageVector = destination.icon,
-                                    contentDescription = destination.label,
-                                )
-                            },
+                            icon = { Icon(imageVector = destination.icon, contentDescription = destination.label) },
                             label = { Text(destination.label) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
@@ -246,14 +255,11 @@ fun MediaLoaderApp(
                 HomeScreen(
                     url = pendingUrl,
                     onUrlChange = {
-                        if (it.isEmpty() && pendingUrl == lastImportedClipboard)
-                            dismissedClipboard = lastImportedClipboard
+                        if (it.isEmpty() && pendingUrl == lastImportedClipboard) dismissedClipboard = lastImportedClipboard
                         pendingUrl = it
                     },
                     onPasteClick = {
-                        clipboardManager.getText()?.text?.takeIf { it.isNotBlank() }?.let {
-                            pendingUrl = it
-                        }
+                        clipboardManager.getText()?.text?.takeIf { it.isNotBlank() }?.let { pendingUrl = it }
                     },
                     onCheckClick = {
                         lastHandledLink = pendingUrl
@@ -289,6 +295,9 @@ fun MediaLoaderApp(
                     onInstagramSignIn = startLogin,
                     onInstagramSignOut = viewModel::logout,
                     onManualSessionId = viewModel::importSessionId,
+                    youtubeSignedIn = youtubeSignedIn,
+                    onYouTubeSignIn = startYouTubeLogin,
+                    onYouTubeSignOut = viewModel::logoutYouTube,
                     hiddenCount = hiddenCount,
                     hiddenItems = hiddenItems.map { entry ->
                         entry.toUi().copy(savedUri = viewModel.trashedUri(entry.id))
@@ -298,16 +307,15 @@ fun MediaLoaderApp(
                     onRestore = viewModel::restoreHidden,
                     onEmptyTrash = viewModel::clearHidden,
                     onClearHistory = viewModel::clearHistory,
-                    ytDlpUpdate = viewModel.ytDlpUpdate.collectAsStateWithLifecycle().value,
-                    ytDlpUpdating = viewModel.ytDlpUpdating.collectAsStateWithLifecycle().value,
+                    ytDlpUpdate = ytDlpUpdate,
+                    ytDlpUpdating = ytDlpUpdating,
                     onUpdateYtDlp = viewModel::updateYtDlp,
-                    hasYouTubeCookies = viewModel.youTubeCookies.collectAsStateWithLifecycle().value,
+                    hasYouTubeCookies = youtubeCookies,
                     onImportYouTubeCookies = viewModel::importYouTubeCookies,
                     onClearYouTubeCookies = viewModel::clearYouTubeCookies,
                 )
             }
             composable(PREVIEW_ROUTE) {
-                // After process death the analysis result is gone: leave the empty preview.
                 LaunchedEffect(preview.analysis) {
                     if (preview.analysis == AnalysisUiState.IDLE) navController.popBackStack()
                 }
@@ -321,7 +329,7 @@ fun MediaLoaderApp(
                     onDownloadSelected = requestDownload,
                     errorMessage = preview.message,
                     busy = preview.enqueuing,
-                    onLogin = startLogin,
+                    onLogin = startLoginForCurrentUrl,
                     onRetry = { viewModel.analyze(preview.url.ifBlank { pendingUrl }) },
                 )
             }
@@ -343,7 +351,7 @@ fun MediaLoaderApp(
                 onDownloadSelected = requestDownload,
                 errorMessage = preview.message,
                 busy = preview.enqueuing,
-                onLogin = startLogin,
+                onLogin = startLoginForCurrentUrl,
                 onRetry = { viewModel.analyze(preview.url.ifBlank { pendingUrl }) },
                 asSheet = true,
             )
