@@ -218,6 +218,8 @@ class DownloadQueueTest {
             queue.cancel(ids[0])
             dao.waitUntil { rows -> rows.any { it.id == ids[0] && it.state == DownloadState.CANCELLED } }
             dao.waitUntil { rows -> rows.any { it.id == ids[1] && it.state == DownloadState.RUNNING } }
+            // RUNNING is persisted before the worker enters the engine; wait for that handoff.
+            withTimeout(5_000) { while (engine.started.size < 2) delay(10) }
             assertEquals(listOf("long.jpg", "next.jpg"), engine.started.toList())
         }
     }
