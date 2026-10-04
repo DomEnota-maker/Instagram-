@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -30,14 +29,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.domenota.medialoader.core.storage.StorageNaming
 import com.domenota.medialoader.ui.model.DownloadUiItem
 import com.domenota.medialoader.ui.model.DownloadUiState
 import com.domenota.medialoader.ui.theme.AccentPurple
@@ -55,7 +59,7 @@ fun DownloadRow(
     onRename: (String) -> Unit = {},
 ) {
     var renameDialog by remember { mutableStateOf(false) }
-    var newName by remember(item.title) { mutableStateOf(item.title) }
+    var newName by remember(item.title) { mutableStateOf(StorageNaming.editableStem(item.title)) }
     if (renameDialog) AlertDialog(
         onDismissRequest = { renameDialog = false },
         title = { Text("Переименовать файл") },
@@ -167,7 +171,10 @@ fun DownloadRow(
                             contentPadding = PaddingValues(horizontal = 2.dp),
                         ) { Text("Удалить", maxLines = 1, fontSize = 12.sp) }
                     }
-                    TextButton(onClick = { newName = item.title; renameDialog = true }) {
+                    TextButton(onClick = {
+                        newName = StorageNaming.editableStem(item.title)
+                        renameDialog = true
+                    }) {
                         Text("Переименовать")
                     }
                 }
@@ -191,24 +198,63 @@ fun DownloadRow(
 
 @Composable
 private fun SourceBadge(providerId: String?) {
-    val source = when (providerId) {
-        "youtube" -> Triple(Icons.Rounded.PlayArrow, Color(0xFFE62117), "YouTube")
-        "instagram" -> Triple(Icons.Rounded.CameraAlt, Color(0xFFE1306C), "Instagram")
-        else -> return
-    }
-    Box(
-        modifier = Modifier
-            .padding(2.dp)
-            .size(18.dp)
-            .background(source.second, RoundedCornerShape(5.dp)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = source.first,
-            contentDescription = source.third,
-            tint = Color.White,
-            modifier = Modifier.size(13.dp),
-        )
+    when (providerId) {
+        "youtube" -> Box(
+            modifier = Modifier
+                .padding(2.dp)
+                .size(19.dp)
+                .background(Color(0xFFFF0033), RoundedCornerShape(5.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.PlayArrow,
+                contentDescription = "YouTube",
+                tint = Color.White,
+                modifier = Modifier.size(14.dp),
+            )
+        }
+        "instagram" -> Box(
+            modifier = Modifier
+                .padding(2.dp)
+                .size(19.dp)
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            Color(0xFFFFC107),
+                            Color(0xFFF44336),
+                            Color(0xFFE1306C),
+                            Color(0xFF833AB4),
+                        ),
+                        start = Offset(0f, 19f),
+                        end = Offset(19f, 0f),
+                    ),
+                    shape = RoundedCornerShape(5.dp),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Canvas(Modifier.size(13.dp)) {
+                val stroke = 1.35.dp.toPx()
+                val inset = stroke / 2f
+                drawRoundRect(
+                    color = Color.White,
+                    topLeft = Offset(inset, inset),
+                    size = Size(size.width - stroke, size.height - stroke),
+                    cornerRadius = CornerRadius(3.2.dp.toPx(), 3.2.dp.toPx()),
+                    style = Stroke(width = stroke),
+                )
+                drawCircle(
+                    color = Color.White,
+                    radius = size.minDimension * 0.22f,
+                    center = center,
+                    style = Stroke(width = stroke),
+                )
+                drawCircle(
+                    color = Color.White,
+                    radius = size.minDimension * 0.075f,
+                    center = Offset(size.width * 0.75f, size.height * 0.25f),
+                )
+            }
+        }
     }
 }
 
