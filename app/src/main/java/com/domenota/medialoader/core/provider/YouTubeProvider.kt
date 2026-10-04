@@ -1,0 +1,89 @@
+package com.domenota.medialoader.core.provider
+
+import com.domenota.medialoader.core.model.MediaItem
+import com.domenota.medialoader.core.model.MediaType
+import com.domenota.medialoader.core.storage.StorageNaming
+import kotlinx.coroutines.CancellationException
+
+/**
+ * YouTube through a [StreamExtractor]. It offers one item per video quality (mutually exclusive,
+ * the best one up to 1080p preselected) and one audio-only item.
+ */
+class YouTubeProvider(private val extractor: StreamExtractor) : MediaProvider {
+    override val id = ID
+
+    override fun supports(url: String): Boolean = YouTubeLinkParser.parse(url) != null
+
+    override suspend fun resolve(url: String): List<MediaItem> {
+        val link = YouTubeLinkParser.parse(url) ?: throw ProviderException(
+            ProviderException.Reason.UNSUPPORTED, "Нужна ссылка на видео YouTube.", ID,
+        )
+        val info = try {
+            extractor.extract(link.canonicalUrl())
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: ExtractionException) {
+            throw ProviderException(
+                if (error.kind == ExtractionException.Kind.UNAVAILABLE) ProviderException.Reason.UNSUPPORTED
+                else ProviderException.Reason.TEMPORARY_FAILURE,
+                error.message ?: "Не удалось получить данные видео.", ID,
+            )
+        } catch (_: Exception) {
+            throw ProviderException(
+                ProviderException.Reason.TEMPORARY_FAILURE, "Не удалось получить данные видео YouTube.", ID,
+            )
+        }
+        return itemsOf(link.canonicalUrl(), info)
+    }
+
+    private fun itemsOf(url: String, info: StreamInfo): List<MediaItem> {
+        val stem = StorageNaming.sanitizeStem(info.title) ?: info.id
+        val audioOnly = info.formats.filter { it.hasAudio && !it.hasVideo }
+        val audioSize = audioOnly.mapNotNull { it.sizeBytes }.maxOrNull()
+        val videos = info.formats.filter { it.hasVideo && it.height != null }
+        val heights = videos.mapNotNull { it.height }.distinct().sortedDescending()
+        if (heights.isEmpty() && audioOnly.isEmpty()) throw ProviderException(
+            ProviderException.Reason.UNSUPPORTED, "YouTube не вернул доступных форматов для этого видео.", ID,
+        )
+        val defaultHeight = heights.firstOrNull { it <= YouTubeFormats.MAX_DEFAULT_HEIGHT } ?: heights.lastOrNull()
+
+        val items = heights.map { height ->
+            val atHeight = videos.filter { it.height == height }
+            val representative = atHeight.filter { it.sizeBytes != null }.maxByOrNull { it.sizeBytes ?: 0L }
+            val size = representative?.sizeBytes?.let { video ->
+                if (representative.hasAudio) video else audioSize?.let { video + it }
+            }
+            val fps = atHeight.mapNotNull { it.fps }.maxOrNull()?.takeIf { it > 30 }
+            MediaItem(
+                id = "${info.id}_${height}p",
+                providerId = ID,
+                type = MediaType.VIDEO,
+                originalName = "${stem}_${height}p.mp4",
+                downloadUrl = url,
+                previewUrl = info.thumbnailUrl,
+                sizeBytes = size,
+                qualityLabel = "${height}p" + (fps?.toString() ?: ""),
+                formatSelector = YouTubeFormats.videoSelector(height),
+                group = VIDEO_GROUP,
+                preselected = height == defaultHeight,
+            )
+        }
+        val audio = MediaItem(
+            id = "${info.id}_audio",
+            providerId = ID,
+            type = MediaType.AUDIO,
+            originalName = "$stem.m4a",
+            downloadUrl = url,
+            previewUrl = info.thumbnailUrl,
+            sizeBytes = audioSize,
+            qualityLabel = "M4A",
+            preselected = false,
+        )
+        return items + audio
+    }
+
+    companion object {
+        const val ID = "youtube"
+        const val VIDEO_GROUP = "video-quality"
+    }
+}

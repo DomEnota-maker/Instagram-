@@ -1,0 +1,228 @@
+package com.domenota.medialoader.data.download
+
+import com.domenota.medialoader.core.database.DownloadEntity
+import com.domenota.medialoader.core.model.DownloadState
+import com.domenota.medialoader.core.model.DownloadTask
+import com.domenota.medialoader.core.model.MediaItem
+import com.domenota.medialoader.core.model.MediaType
+import com.domenota.medialoader.core.storage.StorageNaming
+import com.domenota.medialoader.data.HistoryRepository
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+
+/**
+ * Up to three known-small photos may overlap. Unknown-size files, videos and audio form barriers:
+ * no heavy operation runs alongside any other download.
+ */
+class DownloadQueue(
+    private val history: HistoryRepository,
+    private val engine: DownloadEngine,
+    /** Names already present in the target folder. */
+    private val existingNames: suspend () -> Set<String>,
+    private val scope: CoroutineScope,
+    private val clock: () -> Long = System::currentTimeMillis,
+    private val newId: () -> String = { UUID.randomUUID().toString() },
+    private val onBatchChanged: suspend (String, List<DownloadEntity>) -> Unit = { _, _ -> },
+) {
+    private val pending = Channel<DownloadTask>(Channel.UNLIMITED)
+    private val enqueueLock = Mutex()
+    private var recovered = false
+
+    private val running = ConcurrentHashMap<String, Job>()
+    private val lastProgressAt = ConcurrentHashMap<String, Long>()
+
+    init {
+        scope.launch {
+            enqueueLock.withLock { recoverInterruptedLocked() }
+            val photos = ArrayDeque<Job>()
+            var previousPhoto: CompletableDeferred<Unit>? = null
+            for (task in pending) {
+                try {
+                    if (task.item.type == MediaType.PHOTO &&
+                        task.item.sizeBytes != null && task.item.sizeBytes in 1..MAX_PARALLEL_PHOTO_BYTES) {
+                        while (photos.size >= MAX_PHOTO_TRANSFERS) photos.removeFirst().join()
+                        val finished = CompletableDeferred<Unit>()
+                        val orderedTask = task.copy(publishAfter = previousPhoto)
+                        previousPhoto = finished
+                        photos.addLast(scope.launch {
+                            try { process(orderedTask) }
+                            catch (cancelled: CancellationException) { throw cancelled }
+                            catch (_: Exception) { /* Continue with the other photo tasks. */ }
+                            finally { finished.complete(Unit) }
+                        })
+                    } else {
+                        while (photos.isNotEmpty()) photos.removeFirst().join()
+                        previousPhoto = null
+                        process(task)
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // A storage/database error must not stop the worker: the next task still runs.
+                }
+            }
+        }
+    }
+
+    /** Adds items in the given order. Returns the rows as saved (state QUEUED). */
+    suspend fun enqueue(items: List<MediaItem>): List<DownloadEntity> = enqueueLock.withLock {
+        recoverInterruptedLocked()
+        val groupId = if (items.size > 1) newId() else null
+        val queued = items.map { item ->
+            val taken = existingNames() + history.reservedNames()
+            val preferredName = if (item.customName) item.originalName
+                else StorageNaming.normalizedMediaName(item.originalName, item.position)
+            val fileName = StorageNaming.availableName(preferredName, taken)
+            val entity = DownloadEntity(
+                id = newId(),
+                providerId = item.providerId,
+                originalName = fileName,
+                mediaType = item.type,
+                state = DownloadState.QUEUED,
+                savedUri = null,
+                sizeBytes = item.sizeBytes,
+                createdAtEpochMillis = clock(),
+                sourceUrl = item.downloadUrl,
+                previewUrl = item.previewUrl,
+                groupId = groupId,
+                formatSelector = item.formatSelector,
+            )
+            history.save(entity)
+            pending.send(DownloadTask(id = entity.id, item = item, fileName = fileName))
+            entity
+        }
+        queued.firstOrNull()?.let { refreshBatch(it) }
+        queued
+    }
+
+    /** Retry in place: keeping the row ID also keeps its original carousel group. */
+    suspend fun retry(previous: DownloadEntity) = enqueueLock.withLock {
+        recoverInterruptedLocked()
+        val current = history.byId(previous.id) ?: return@withLock
+        if (current.state != DownloadState.FAILED && current.state != DownloadState.CANCELLED) return@withLock
+        val url = current.sourceUrl ?: return@withLock
+        val name = StorageNaming.availableName(current.originalName,
+            existingNames() + history.reservedNames())
+        val queued = current.copy(originalName = name, state = DownloadState.QUEUED,
+            sizeBytes = if (current.mediaType == MediaType.AUDIO) null else current.sizeBytes,
+            bytesDownloaded = 0, errorMessage = null, savedUri = null, hidden = false)
+        history.save(queued)
+        pending.send(DownloadTask(queued.id, MediaItem(queued.id, queued.providerId,
+            queued.mediaType, queued.originalName, url, previewUrl = queued.previewUrl,
+            sizeBytes = queued.sizeBytes, formatSelector = queued.formatSelector), name))
+        refreshBatch(queued)
+    }
+
+    /** Cancels a running task (stopping the transfer) or removes a waiting one from the queue. */
+    suspend fun cancel(id: String) {
+        enqueueLock.withLock {
+            val job = running[id]
+            if (job != null) job.cancel()
+            else {
+                val entity = history.byId(id)
+                if (entity?.state == DownloadState.QUEUED) {
+                    history.save(entity.copy(state = DownloadState.CANCELLED))
+                    refreshBatch(entity)
+                }
+            }
+        }
+    }
+
+    /** Rows left QUEUED/RUNNING by a previous process have no worker any more. */
+    private suspend fun recoverInterruptedLocked() {
+        if (recovered) return
+        recovered = true
+        history.all()
+            .filter { it.state == DownloadState.QUEUED || it.state == DownloadState.RUNNING }
+            .forEach { history.save(it.copy(state = DownloadState.FAILED, errorMessage = INTERRUPTED)) }
+    }
+
+    private suspend fun process(task: DownloadTask) {
+        // The job is registered before RUNNING becomes visible, so a cancel can always find it.
+        val job = scope.launch(start = CoroutineStart.LAZY) { transfer(task) }
+        val start = enqueueLock.withLock {
+            val entity = history.byId(task.id)
+            if (entity?.state != DownloadState.QUEUED) false
+            else {
+                running[task.id] = job
+                history.save(entity.copy(state = DownloadState.RUNNING, errorMessage = null))
+                refreshBatch(entity)
+                true
+            }
+        }
+        if (!start) { job.cancel(); return }
+        try {
+            job.start()
+            job.join()
+        } finally {
+            running.remove(task.id, job)
+            lastProgressAt.remove(task.id)
+        }
+        // A job cancelled before it started never reaches transfer(): do not leave the row RUNNING.
+        if (job.isCancelled) {
+            update(task.id) { if (it.state == DownloadState.RUNNING) it.copy(state = DownloadState.CANCELLED) else it }
+        }
+    }
+
+    private suspend fun transfer(task: DownloadTask) {
+        try {
+            val result = engine.download(task) { bytes, total -> reportProgress(task.id, bytes, total) }
+            update(task.id) {
+                it.copy(
+                    state = DownloadState.COMPLETED,
+                    savedUri = result.savedUri,
+                    sizeBytes = result.sizeBytes ?: it.sizeBytes,
+                    bytesDownloaded = result.sizeBytes ?: it.bytesDownloaded,
+                    errorMessage = null,
+                )
+            }
+        } catch (cancelled: CancellationException) {
+            withContext(NonCancellable) { update(task.id) { it.copy(state = DownloadState.CANCELLED) } }
+            throw cancelled
+        } catch (error: Exception) {
+            val message = (error as? DownloadFailure)?.message ?: GENERIC_FAILURE
+            update(task.id) { it.copy(state = DownloadState.FAILED, errorMessage = message) }
+        }
+    }
+
+    private suspend fun reportProgress(id: String, bytes: Long, total: Long?) {
+        val now = clock()
+        if (now - (lastProgressAt[id] ?: 0L) < PROGRESS_INTERVAL_MS) return
+        lastProgressAt[id] = now
+        update(id) { if (it.state == DownloadState.RUNNING) it.copy(bytesDownloaded = bytes, sizeBytes = total ?: it.sizeBytes) else it }
+    }
+
+    private suspend fun update(id: String, change: (DownloadEntity) -> DownloadEntity) {
+        val current = history.byId(id) ?: return
+        val changed = change(current)
+        if (changed != current) {
+            history.save(changed)
+            if (changed.state != current.state) refreshBatch(changed)
+        }
+    }
+
+    private suspend fun refreshBatch(item: DownloadEntity) {
+        val key = item.groupId ?: item.id
+        val rows = history.all().filter { (it.groupId ?: it.id) == key && !it.hidden }
+        runCatching { onBatchChanged(key, rows) }
+    }
+
+    private companion object {
+        const val PROGRESS_INTERVAL_MS = 500L
+        const val MAX_PARALLEL_PHOTO_BYTES = 5L * 1024 * 1024
+        const val MAX_PHOTO_TRANSFERS = 3
+        const val INTERRUPTED = "Загрузка прервана. Повторите."
+        const val GENERIC_FAILURE = "Не удалось сохранить файл. Повторите анализ ссылки."
+    }
+}

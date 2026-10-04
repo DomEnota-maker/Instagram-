@@ -2,39 +2,70 @@ plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
     id 'org.jetbrains.kotlin.plugin.compose'
+    id 'org.jetbrains.kotlin.kapt'
 }
 
 android {
-    namespace 'app.medialoader'
+    namespace 'com.domenota.medialoader'
     compileSdk 35
 
     defaultConfig {
-        applicationId 'app.medialoader'
+        applicationId 'com.domenota.medialoader'
         minSdk 26
         targetSdk 35
-        versionCode 4
-        versionName '0.1.0-alpha04'
+        versionCode 10
+        versionName '1.2.0'
     }
-    buildTypes {
-        release { minifyEnabled false }
+
+    buildFeatures {
+        compose true
+        buildConfig true
     }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = '17' }
-    buildFeatures { compose true }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    packaging {
+        jniLibs { useLegacyPackaging = true }
+        resources {
+            excludes += '/META-INF/{AL2.0,LGPL2.1}'
+        }
+    }
 }
 
 dependencies {
-    implementation project(':core')
+    implementation platform('androidx.compose:compose-bom:2024.10.00')
+    implementation 'androidx.activity:activity-compose:1.9.3'
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.material:material-icons-extended'
+    implementation 'androidx.navigation:navigation-compose:2.8.3'
+
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.documentfile:documentfile:1.0.1'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.7'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
     implementation 'androidx.room:room-runtime:2.6.1'
     implementation 'androidx.room:room-ktx:2.6.1'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
-    implementation platform('androidx.compose:compose-bom:2024.10.00')
-    implementation 'androidx.compose.material3:material3'
-    implementation 'androidx.compose.ui:ui-tooling-preview'
+    kapt 'androidx.room:room-compiler:2.6.1'
+    implementation 'androidx.security:security-crypto:1.1.0-alpha06'
+    // Audio-only LGPL build with libmp3lame; actual transcoding, not an extension change.
+    implementation 'dev.ffmpegkit-maintained:ffmpeg-kit-audio:8.1.7'
+    // The audio AAR references this class at runtime; this variant does not bring it into the APK.
+    implementation 'com.arthenica:smart-exception-java:0.2.1'
+    implementation 'io.github.junkfood02.youtubedl-android:library:0.18.1'
+    implementation 'io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1'
+
     debugImplementation 'androidx.compose.ui:ui-tooling'
-    implementation 'androidx.activity:activity-compose:1.9.3'
-    implementation 'androidx.navigation:navigation-compose:2.8.3'
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
 }

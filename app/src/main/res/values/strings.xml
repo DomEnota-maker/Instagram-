@@ -1,15 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">MediaLoader</string>
-    <string name="app_version">0.1.0-alpha04</string>
-    <string name="tab_home">Скачать</string>
-    <string name="tab_downloads">Загрузки</string>
-    <string name="tab_settings">Настройки</string>
-    <string name="home_title">Сохранение медиа</string>
-    <string name="home_description">Вставь ссылку на публикацию. Поддержка источников появится в следующем этапе.</string>
-    <string name="link_hint">Ссылка на медиа</string>
-    <string name="action_analyze">Анализ ссылки</string>
-    <string name="unavailable">Анализ ссылок пока недоступен в версии Foundation.</string>
-    <string name="downloads_empty">История загрузок пока пуста. Загрузка и сохранение файлов появятся позже.</string>
-    <string name="settings_description">Настройки загрузки, уведомлений и темы появятся в следующих версиях.</string>
-    <string name="foundation_label">Foundation · %1$s</string>
+    <string name="app_name">Загрузчик</string>
 </resources>

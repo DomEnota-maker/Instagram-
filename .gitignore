@@ -1,10 +1,12 @@
+# Android / Gradle
 .gradle/
 build/
 **/build/
 local.properties
 .idea/
 *.iml
-*.apk
+
+# Signing material — NEVER COMMIT PRIVATE KEYS OR CREDENTIALS
 *.jks
 *.keystore
 *.p12
