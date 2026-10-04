@@ -25,11 +25,12 @@ class YouTubeProvider(private val extractor: StreamExtractor) : MediaProvider {
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: ExtractionException) {
+            val authMessage = error.message.orEmpty().contains("требует вход в аккаунт", ignoreCase = true)
             throw ProviderException(
-                when (error.kind) {
-                    ExtractionException.Kind.UNAVAILABLE -> ProviderException.Reason.UNSUPPORTED
-                    ExtractionException.Kind.AUTH_REQUIRED -> ProviderException.Reason.ACCESS_REQUIRED
-                    ExtractionException.Kind.FAILED -> ProviderException.Reason.TEMPORARY_FAILURE
+                when {
+                    authMessage || error.kind == ExtractionException.Kind.AUTH_REQUIRED -> ProviderException.Reason.ACCESS_REQUIRED
+                    error.kind == ExtractionException.Kind.UNAVAILABLE -> ProviderException.Reason.UNSUPPORTED
+                    else -> ProviderException.Reason.TEMPORARY_FAILURE
                 },
                 error.message ?: "Не удалось получить данные видео.",
                 ID,
