@@ -1,7 +1,6 @@
 package com.domenota.medialoader.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,11 +15,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.Link
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -72,11 +71,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .size(62.dp)
                     .clip(RoundedCornerShape(18.dp))
-                    .background(
-                        Brush.linearGradient(
-                            listOf(AccentPurple, AccentPurpleSoft),
-                        ),
-                    ),
+                    .background(Brush.linearGradient(listOf(AccentPurple, AccentPurpleSoft))),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -94,7 +89,7 @@ fun HomeScreen(
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "Сохраняйте медиа из Instagram",
+                text = "Сохраняйте фото, видео и музыку из Instagram и YouTube",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -106,17 +101,14 @@ fun HomeScreen(
             value = url,
             onValueChange = onUrlChange,
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Вставьте ссылку из Instagram…") },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Rounded.Link,
-                    contentDescription = null,
-                )
-            },
+            placeholder = { Text("Вставьте ссылку из Instagram или YouTube…") },
+            leadingIcon = { Icon(imageVector = Icons.Rounded.Link, contentDescription = null) },
             trailingIcon = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (url.isNotEmpty()) IconButton(onClick = { onUrlChange("") }) {
-                        Icon(Icons.Rounded.Close, contentDescription = "Очистить ссылку")
+                    if (url.isNotEmpty()) {
+                        IconButton(onClick = { onUrlChange("") }) {
+                            Icon(Icons.Rounded.Close, contentDescription = "Очистить ссылку")
+                        }
                     }
                     IconButton(onClick = onPasteClick) {
                         Icon(Icons.Rounded.ContentPaste, contentDescription = "Вставить из буфера")
@@ -144,19 +136,14 @@ fun HomeScreen(
 
         Spacer(Modifier.height(30.dp))
 
-        SectionTitle(
-            title = "Последние загрузки",
-            action = "Все",
-            onActionClick = onOpenDownloads,
-        )
-
+        SectionTitle(title = "Последние загрузки", action = "Все", onActionClick = onOpenDownloads)
         Spacer(Modifier.height(12.dp))
 
         if (recentDownloads.isEmpty()) {
             EmptyStateCard(
                 icon = Icons.Rounded.Download,
                 title = "Нет загрузок",
-                text = "Вставьте ссылку, чтобы начать загрузку",
+                text = "Вставьте ссылку Instagram или YouTube, чтобы начать",
             )
         } else {
             recentDownloads.forEachIndexed { index, item ->
@@ -172,6 +159,5 @@ fun HomeScreen(
                 if (index != recentDownloads.lastIndex) Spacer(Modifier.height(10.dp))
             }
         }
-
     }
 }
