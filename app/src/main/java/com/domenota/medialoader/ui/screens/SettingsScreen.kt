@@ -75,6 +75,9 @@ fun SettingsScreen(
     youtubeSignedIn: Boolean,
     onYouTubeSignIn: () -> Unit,
     onYouTubeSignOut: () -> Unit,
+    vkSignedIn: Boolean,
+    onVkSignIn: () -> Unit,
+    onVkSignOut: () -> Unit,
     hiddenCount: Int,
     hiddenItems: List<DownloadUiItem>,
     onChangeFolder: (String) -> Unit,
@@ -169,6 +172,7 @@ fun SettingsScreen(
     var confirmClear by remember { mutableStateOf(false) }
     var confirmInstagramSignOut by remember { mutableStateOf(false) }
     var confirmYouTubeSignOut by remember { mutableStateOf(false) }
+    var confirmVkSignOut by remember { mutableStateOf(false) }
     var trashDialog by remember { mutableStateOf(false) }
     var confirmEmptyTrash by remember { mutableStateOf(false) }
     var selectedTrashIds by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -197,6 +201,16 @@ fun SettingsScreen(
             TextButton(onClick = { onYouTubeSignOut(); confirmYouTubeSignOut = false }) { Text("Выйти") }
         },
         dismissButton = { TextButton(onClick = { confirmYouTubeSignOut = false }) { Text("Отмена") } },
+    )
+
+    if (confirmVkSignOut) AlertDialog(
+        onDismissRequest = { confirmVkSignOut = false },
+        title = { Text("Выйти из VK?") },
+        text = { Text("Сохранённая для загрузки видео сессия VK будет удалена.") },
+        confirmButton = {
+            TextButton(onClick = { onVkSignOut(); confirmVkSignOut = false }) { Text("Выйти") }
+        },
+        dismissButton = { TextButton(onClick = { confirmVkSignOut = false }) { Text("Отмена") } },
     )
 
     if (trashDialog) AlertDialog(
@@ -403,6 +417,17 @@ fun SettingsScreen(
                 "Для роликов с возрастом, проверкой или требованием входа"
             },
             onClick = if (youtubeSignedIn) ({ confirmYouTubeSignOut = true }) else onYouTubeSignIn,
+        )
+        Spacer(Modifier.height(10.dp))
+        SettingRow(
+            icon = Icons.Rounded.AccountCircle,
+            title = "Аккаунт VK",
+            subtitle = if (vkSignedIn) {
+                "Сессия сохранена · нажмите, чтобы выйти"
+            } else {
+                "Для закрытых видео, клипов и роликов с ограничением доступа"
+            },
+            onClick = if (vkSignedIn) ({ confirmVkSignOut = true }) else onVkSignIn,
         )
         Spacer(Modifier.height(10.dp))
         SettingRow(
