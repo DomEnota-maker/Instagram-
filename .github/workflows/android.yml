@@ -34,6 +34,7 @@ jobs:
           mkdir -p signing-tools
           cp "$ANDROID_SDK_ROOT/build-tools/35.0.0/lib/apksigner.jar" signing-tools/
           cp "$ANDROID_SDK_ROOT/build-tools/35.0.0/zipalign" signing-tools/
+          split -b 20m -d -a 2 app/build/outputs/apk/release/app-release-unsigned.apk release-part-
       - uses: actions/upload-artifact@v4
         with:
           name: MediaLoader-alpha-debug
@@ -41,11 +42,66 @@ jobs:
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
-          name: MediaLoader-release-unsigned
-          path: app/build/outputs/apk/release/app-release-unsigned.apk
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        with:
           name: MediaLoader-signing-tools
           path: signing-tools/
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-00
+          path: release-part-00
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-01
+          path: release-part-01
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-02
+          path: release-part-02
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-03
+          path: release-part-03
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-04
+          path: release-part-04
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-05
+          path: release-part-05
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-06
+          path: release-part-06
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-07
+          path: release-part-07
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-08
+          path: release-part-08
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-09
+          path: release-part-09
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-10
+          path: release-part-10
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-11
+          path: release-part-11
+          if-no-files-found: ignore
