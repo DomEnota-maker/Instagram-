@@ -51,6 +51,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.domenota.medialoader.BuildConfig
 import com.domenota.medialoader.core.provider.InstagramLinkParser
+import com.domenota.medialoader.core.provider.VkLinkParser
 import com.domenota.medialoader.core.provider.YouTubeLinkParser
 import com.domenota.medialoader.core.storage.StorageNaming
 import com.domenota.medialoader.ui.model.AnalysisUiState
@@ -90,6 +91,7 @@ fun MediaLoaderApp(
     val downloads by viewModel.downloads.collectAsStateWithLifecycle()
     val signedIn by viewModel.signedIn.collectAsStateWithLifecycle()
     val youtubeSignedIn by viewModel.youTubeSignedIn.collectAsStateWithLifecycle()
+    val vkSignedIn by viewModel.vkSignedIn.collectAsStateWithLifecycle()
     val youtubeCookies by viewModel.youTubeCookies.collectAsStateWithLifecycle()
     val ytDlpUpdate by viewModel.ytDlpUpdate.collectAsStateWithLifecycle()
     val ytDlpUpdating by viewModel.ytDlpUpdating.collectAsStateWithLifecycle()
@@ -120,9 +122,19 @@ fun MediaLoaderApp(
     val startYouTubeLogin: () -> Unit = {
         youtubeLoginLauncher.launch(Intent(context, YouTubeLoginActivity::class.java))
     }
+    val vkLoginLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        viewModel.onVkLoginFinished(result.resultCode == Activity.RESULT_OK)
+    }
+    val startVkLogin: () -> Unit = {
+        vkLoginLauncher.launch(Intent(context, VkLoginActivity::class.java))
+    }
     val startLoginForCurrentUrl: () -> Unit = {
         val target = preview.url.ifBlank { pendingUrl }
-        if (YouTubeLinkParser.parse(target) != null) startYouTubeLogin() else startLogin()
+        when {
+            YouTubeLinkParser.parse(target) != null -> startYouTubeLogin()
+            VkLinkParser.parse(target) != null -> startVkLogin()
+            else -> startLogin()
+        }
     }
 
     // Android 8–9 need the legacy storage permission for the public Downloads folder.
@@ -195,7 +207,8 @@ fun MediaLoaderApp(
             val firstCheck = !checkedClipboardAtLaunch
             checkedClipboardAtLaunch = true
             val candidate = clipboardManager.getText()?.text?.let(::extractFirstUrl) ?: return
-            if (InstagramLinkParser.parse(candidate) == null && YouTubeLinkParser.parse(candidate) == null) return
+            if (InstagramLinkParser.parse(candidate) == null && YouTubeLinkParser.parse(candidate) == null &&
+                VkLinkParser.parse(candidate) == null) return
             if (candidate == dismissedClipboard) return
             if (firstCheck || pendingUrl.isBlank() || pendingUrl == lastImportedClipboard) {
                 pendingUrl = candidate
@@ -299,6 +312,9 @@ fun MediaLoaderApp(
                     youtubeSignedIn = youtubeSignedIn,
                     onYouTubeSignIn = startYouTubeLogin,
                     onYouTubeSignOut = viewModel::logoutYouTube,
+                    vkSignedIn = vkSignedIn,
+                    onVkSignIn = startVkLogin,
+                    onVkSignOut = viewModel::logoutVk,
                     hiddenCount = hiddenCount,
                     hiddenItems = hiddenItems.map { entry ->
                         entry.toUi().copy(savedUri = viewModel.trashedUri(entry.id))
