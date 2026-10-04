@@ -89,7 +89,7 @@ fun HomeScreen(
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "Сохраняйте фото, видео и музыку из Instagram и YouTube",
+                text = "Сохраняйте фото, видео и музыку из Instagram, YouTube и VK",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -101,7 +101,7 @@ fun HomeScreen(
             value = url,
             onValueChange = onUrlChange,
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Вставьте ссылку из Instagram или YouTube…") },
+            placeholder = { Text("Вставьте ссылку из Instagram, YouTube или VK…") },
             leadingIcon = { Icon(imageVector = Icons.Rounded.Link, contentDescription = null) },
             trailingIcon = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -143,7 +143,7 @@ fun HomeScreen(
             EmptyStateCard(
                 icon = Icons.Rounded.Download,
                 title = "Нет загрузок",
-                text = "Вставьте ссылку Instagram или YouTube, чтобы начать",
+                text = "Вставьте ссылку Instagram, YouTube или VK, чтобы начать",
             )
         } else {
             recentDownloads.forEachIndexed { index, item ->
