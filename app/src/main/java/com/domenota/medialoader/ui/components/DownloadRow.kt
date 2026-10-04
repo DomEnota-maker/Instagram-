@@ -256,6 +256,22 @@ private fun SourceBadge(providerId: String?) {
                 )
             }
         }
+        "vk" -> Box(
+            modifier = Modifier
+                .padding(2.dp)
+                .size(20.dp)
+                .background(Color(0xFF0077FF), RoundedCornerShape(5.5.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "VK",
+                color = Color.White,
+                fontWeight = FontWeight.Black,
+                fontSize = 8.sp,
+                letterSpacing = (-0.5).sp,
+                maxLines = 1,
+            )
+        }
     }
 }
 
