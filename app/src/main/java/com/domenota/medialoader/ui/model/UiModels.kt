@@ -44,4 +44,5 @@ data class DownloadUiItem(
     val savedUri: String? = null,
     val kind: MediaKind = MediaKind.IMAGE,
     val groupId: String? = null,
+    val providerId: String? = null,
 )
