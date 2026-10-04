@@ -72,6 +72,9 @@ fun SettingsScreen(
     onInstagramSignIn: () -> Unit,
     onInstagramSignOut: () -> Unit,
     onManualSessionId: (String) -> Boolean,
+    youtubeSignedIn: Boolean,
+    onYouTubeSignIn: () -> Unit,
+    onYouTubeSignOut: () -> Unit,
     hiddenCount: Int,
     hiddenItems: List<DownloadUiItem>,
     onChangeFolder: (String) -> Unit,
@@ -91,9 +94,13 @@ fun SettingsScreen(
     val prefs = remember(context) { context.getSharedPreferences("ui", 0) }
     var notificationsEnabled by remember { mutableStateOf(prefs.getBoolean("notifications", true)) }
     var systemNotificationsAllowed by remember { mutableStateOf(false) }
+
     fun allowed(): Boolean = NotificationManagerCompat.from(context).areNotificationsEnabled() &&
-        (Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context,
-            Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
+        (Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED)
+
     DisposableEffect(lifecycleOwner) {
         systemNotificationsAllowed = allowed()
         val observer = LifecycleEventObserver { _, event ->
@@ -102,6 +109,7 @@ fun SettingsScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+
     val notificationSettings = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         systemNotificationsAllowed = allowed()
         if (systemNotificationsAllowed) {
@@ -138,22 +146,29 @@ fun SettingsScreen(
             })
         }
     }
+
     fun enableNotifications() {
         if (allowed()) {
             notificationsEnabled = true
             prefs.edit().putBoolean("notifications", true).apply()
-        } else if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context,
-                Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+        } else if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) != PackageManager.PERMISSION_GRANTED) {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-        } else notificationSettings.launch(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-        })
+        } else {
+            notificationSettings.launch(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            })
+        }
     }
+
     var darkTheme by remember { mutableStateOf(prefs.getBoolean("dark", true)) }
     var folderDialog by remember { mutableStateOf(false) }
     var folderName by remember { mutableStateOf("MediaLoader") }
     var confirmClear by remember { mutableStateOf(false) }
-    var confirmSignOut by remember { mutableStateOf(false) }
+    var confirmInstagramSignOut by remember { mutableStateOf(false) }
+    var confirmYouTubeSignOut by remember { mutableStateOf(false) }
     var trashDialog by remember { mutableStateOf(false) }
     var confirmEmptyTrash by remember { mutableStateOf(false) }
     var selectedTrashIds by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -164,47 +179,93 @@ fun SettingsScreen(
     var logsUnlocked by remember { mutableStateOf(prefs.getBoolean("logs_unlocked", false)) }
     var aboutTapCount by remember { mutableStateOf(0) }
 
-    if (confirmSignOut) AlertDialog(onDismissRequest = { confirmSignOut = false },
+    if (confirmInstagramSignOut) AlertDialog(
+        onDismissRequest = { confirmInstagramSignOut = false },
         title = { Text("Выйти из Instagram?") },
         text = { Text("Сохранённая сессия будет удалена. При необходимости можно войти снова.") },
-        confirmButton = { TextButton(onClick = { onInstagramSignOut(); confirmSignOut = false }) { Text("Выйти") } },
-        dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text("Отмена") } })
+        confirmButton = {
+            TextButton(onClick = { onInstagramSignOut(); confirmInstagramSignOut = false }) { Text("Выйти") }
+        },
+        dismissButton = { TextButton(onClick = { confirmInstagramSignOut = false }) { Text("Отмена") } },
+    )
 
-    if (trashDialog) AlertDialog(onDismissRequest = { trashDialog = false },
+    if (confirmYouTubeSignOut) AlertDialog(
+        onDismissRequest = { confirmYouTubeSignOut = false },
+        title = { Text("Выйти из YouTube?") },
+        text = { Text("Сохранённая для yt-dlp сессия YouTube будет удалена.") },
+        confirmButton = {
+            TextButton(onClick = { onYouTubeSignOut(); confirmYouTubeSignOut = false }) { Text("Выйти") }
+        },
+        dismissButton = { TextButton(onClick = { confirmYouTubeSignOut = false }) { Text("Отмена") } },
+    )
+
+    if (trashDialog) AlertDialog(
+        onDismissRequest = { trashDialog = false },
         title = { Text("Корзина") },
         text = {
             Column(Modifier.heightIn(max = 380.dp).verticalScroll(rememberScrollState())) {
                 if (hiddenItems.isEmpty()) Text("Корзина пуста")
                 hiddenItems.forEach { item ->
-                    Row(Modifier.fillMaxWidth().clickable {
-                        selectedTrashIds = if (item.id in selectedTrashIds) selectedTrashIds - item.id
-                        else selectedTrashIds + item.id
-                    }.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedTrashIds = if (item.id in selectedTrashIds) {
+                                    selectedTrashIds - item.id
+                                } else {
+                                    selectedTrashIds + item.id
+                                }
+                            }
+                            .padding(vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Checkbox(checked = item.id in selectedTrashIds, onCheckedChange = null)
                         DownloadThumbnail(item.savedUri, item.previewUrl, item.kind, Modifier.size(48.dp))
                         Column(Modifier.weight(1f).padding(start = 8.dp)) {
                             Text(item.title, maxLines = 1)
-                            Text(item.subtitle, style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                            Text(
+                                item.subtitle,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                            )
                         }
                     }
                 }
-                if (hiddenItems.isNotEmpty()) TextButton(onClick = { confirmEmptyTrash = true }) {
-                    Text("Очистить корзину", color = MaterialTheme.colorScheme.error)
+                if (hiddenItems.isNotEmpty()) {
+                    TextButton(onClick = { confirmEmptyTrash = true }) {
+                        Text("Очистить корзину", color = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
         },
-        confirmButton = { TextButton(enabled = selectedTrashIds.isNotEmpty(), onClick = {
-            onRestore(selectedTrashIds); trashDialog = false; selectedTrashIds = emptySet()
-        }) { Text("Восстановить выбранные") } },
-        dismissButton = { TextButton(onClick = { trashDialog = false }) { Text("Закрыть") } })
-    if (confirmEmptyTrash) AlertDialog(onDismissRequest = { confirmEmptyTrash = false },
+        confirmButton = {
+            TextButton(
+                enabled = selectedTrashIds.isNotEmpty(),
+                onClick = {
+                    onRestore(selectedTrashIds)
+                    trashDialog = false
+                    selectedTrashIds = emptySet()
+                },
+            ) { Text("Восстановить выбранные") }
+        },
+        dismissButton = { TextButton(onClick = { trashDialog = false }) { Text("Закрыть") } },
+    )
+
+    if (confirmEmptyTrash) AlertDialog(
+        onDismissRequest = { confirmEmptyTrash = false },
         title = { Text("Очистить корзину?") },
         text = { Text("Файлы из корзины будут удалены без возможности восстановления.") },
-        confirmButton = { TextButton(onClick = {
-            onEmptyTrash(); confirmEmptyTrash = false; trashDialog = false; selectedTrashIds = emptySet()
-        }) { Text("Очистить") } },
-        dismissButton = { TextButton(onClick = { confirmEmptyTrash = false }) { Text("Отмена") } })
+        confirmButton = {
+            TextButton(onClick = {
+                onEmptyTrash()
+                confirmEmptyTrash = false
+                trashDialog = false
+                selectedTrashIds = emptySet()
+            }) { Text("Очистить") }
+        },
+        dismissButton = { TextButton(onClick = { confirmEmptyTrash = false }) { Text("Отмена") } },
+    )
 
     if (sessionDialog) AlertDialog(
         onDismissRequest = { sessionValue = ""; sessionDialog = false },
@@ -223,29 +284,54 @@ fun SettingsScreen(
                 if (sessionInvalid) Text("Проверь формат sessionid", color = MaterialTheme.colorScheme.error)
             }
         },
-        confirmButton = { TextButton(onClick = {
-            if (onManualSessionId(sessionValue)) { sessionValue = ""; sessionDialog = false }
-            else sessionInvalid = true
-        }) { Text("Сохранить") } },
-        dismissButton = { TextButton(onClick = { sessionValue = ""; sessionDialog = false }) { Text("Отмена") } },
+        confirmButton = {
+            TextButton(onClick = {
+                if (onManualSessionId(sessionValue)) {
+                    sessionValue = ""
+                    sessionDialog = false
+                } else {
+                    sessionInvalid = true
+                }
+            }) { Text("Сохранить") }
+        },
+        dismissButton = {
+            TextButton(onClick = { sessionValue = ""; sessionDialog = false }) { Text("Отмена") }
+        },
     )
 
-    if (folderDialog) AlertDialog(onDismissRequest = { folderDialog = false },
+    if (folderDialog) AlertDialog(
+        onDismissRequest = { folderDialog = false },
         title = { Text("Папка загрузок") },
-        text = { Column {
-            Text("Выберите папку через проводник или сохраняйте в Загрузки.")
-            Spacer(Modifier.height(12.dp))
-            TextButton(onClick = { folderDialog = false; onSelectFolder() }) { Text("Выбрать в проводнике") }
-            OutlinedTextField(value = folderName, onValueChange = { folderName = it },
-                label = { Text("Папка внутри Загрузок") }, singleLine = true)
-        } },
-        confirmButton = { TextButton(onClick = { onChangeFolder(folderName); folderDialog = false }) { Text("Сохранить в Загрузки") } },
-        dismissButton = { TextButton(onClick = { folderDialog = false }) { Text("Отмена") } })
-    if (confirmClear) AlertDialog(onDismissRequest = { confirmClear = false },
+        text = {
+            Column {
+                Text("Выберите папку через проводник или сохраняйте в Загрузки.")
+                Spacer(Modifier.height(12.dp))
+                TextButton(onClick = { folderDialog = false; onSelectFolder() }) { Text("Выбрать в проводнике") }
+                OutlinedTextField(
+                    value = folderName,
+                    onValueChange = { folderName = it },
+                    label = { Text("Папка внутри Загрузок") },
+                    singleLine = true,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onChangeFolder(folderName); folderDialog = false }) {
+                Text("Сохранить в Загрузки")
+            }
+        },
+        dismissButton = { TextButton(onClick = { folderDialog = false }) { Text("Отмена") } },
+    )
+
+    if (confirmClear) AlertDialog(
+        onDismissRequest = { confirmClear = false },
         title = { Text("Очистить историю?") },
         text = { Text("История и файлы в корзине будут удалены. Сохранённые загрузки останутся на устройстве.") },
-        confirmButton = { TextButton(onClick = { onClearHistory(); confirmClear = false }) { Text("Очистить") } },
-        dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Отмена") } })
+        confirmButton = {
+            TextButton(onClick = { onClearHistory(); confirmClear = false }) { Text("Очистить") }
+        },
+        dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Отмена") } },
+    )
 
     if (logsDialog) AlertDialog(
         onDismissRequest = { logsDialog = false },
@@ -260,10 +346,7 @@ fun SettingsScreen(
                 Spacer(Modifier.height(8.dp))
                 Row {
                     TextButton(onClick = { logText = AppLog.readText() }) { Text("Обновить") }
-                    TextButton(onClick = {
-                        AppLog.clear()
-                        logText = ""
-                    }) { Text("Очистить") }
+                    TextButton(onClick = { AppLog.clear(); logText = "" }) { Text("Очистить") }
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
@@ -294,7 +377,10 @@ fun SettingsScreen(
             icon = Icons.Rounded.Folder,
             title = "Папка загрузок",
             subtitle = downloadFolder,
-            onClick = { folderName = downloadFolder.substringAfter("Download/", "MediaLoader"); folderDialog = true },
+            onClick = {
+                folderName = downloadFolder.substringAfter("Download/", "MediaLoader")
+                folderDialog = true
+            },
         )
         Spacer(Modifier.height(10.dp))
         SettingRow(
@@ -305,46 +391,55 @@ fun SettingsScreen(
             } else {
                 "Нужен для Stories и публикаций без публичного доступа"
             },
-            onClick = if (instagramSignedIn) ({ confirmSignOut = true }) else onInstagramSignIn,
+            onClick = if (instagramSignedIn) ({ confirmInstagramSignOut = true }) else onInstagramSignIn,
+        )
+        Spacer(Modifier.height(10.dp))
+        SettingRow(
+            icon = Icons.Rounded.AccountCircle,
+            title = "Аккаунт YouTube",
+            subtitle = if (youtubeSignedIn) {
+                "Сессия сохранена · нажмите, чтобы выйти"
+            } else {
+                "Для роликов с возрастом, проверкой или требованием входа"
+            },
+            onClick = if (youtubeSignedIn) ({ confirmYouTubeSignOut = true }) else onYouTubeSignIn,
         )
         Spacer(Modifier.height(10.dp))
         SettingRow(
             icon = Icons.Rounded.AccountCircle,
             title = "Ручной sessionid",
-            subtitle = "Если вход через сайт Instagram не завершился",
+            subtitle = "Резервный вход Instagram, если WebView не завершился",
             onClick = { sessionInvalid = false; sessionDialog = true },
         )
         Spacer(Modifier.height(10.dp))
         SettingRow(
             icon = Icons.Rounded.Restore,
             title = if (ytDlpUpdating) "Обновляем yt-dlp…" else "Обновить yt-dlp",
-            subtitle = ytDlpUpdate ?: "Обновление поддержки YouTube через интернет",
+            subtitle = ytDlpUpdate ?: "Проверка обновлений выполняется автоматически при HTTP 403",
             onClick = if (ytDlpUpdating) null else onUpdateYtDlp,
         )
-        Spacer(Modifier.height(10.dp))
-        SettingRow(icon = Icons.Rounded.AccountCircle,
-            title = "Cookies YouTube",
-            subtitle = if (hasYouTubeCookies) "Файл импортирован · нажмите, чтобы заменить" else
-                "Для видео, которым требуется вход · файл Netscape",
-            onClick = { cookiesPicker.launch(arrayOf("text/plain", "application/octet-stream")) })
-        if (hasYouTubeCookies) {
-            TextButton(onClick = onClearYouTubeCookies) { Text("Удалить cookies YouTube") }
-        }
         Spacer(Modifier.height(10.dp))
         SettingRow(
             icon = Icons.Rounded.Notifications,
             title = "Уведомления",
             subtitle = if (!systemNotificationsAllowed) "Разрешить в настройках Android" else "О завершении загрузок",
-            onClick = { if (notificationsEnabled && systemNotificationsAllowed) {
-                notificationsEnabled = false
-                prefs.edit().putBoolean("notifications", false).apply()
-            } else enableNotifications() },
+            onClick = {
+                if (notificationsEnabled && systemNotificationsAllowed) {
+                    notificationsEnabled = false
+                    prefs.edit().putBoolean("notifications", false).apply()
+                } else {
+                    enableNotifications()
+                }
+            },
             trailing = {
                 Switch(
                     checked = notificationsEnabled && systemNotificationsAllowed,
                     onCheckedChange = { enabled ->
                         if (enabled) enableNotifications()
-                        else { notificationsEnabled = false; prefs.edit().putBoolean("notifications", false).apply() }
+                        else {
+                            notificationsEnabled = false
+                            prefs.edit().putBoolean("notifications", false).apply()
+                        }
                     },
                 )
             },
@@ -368,8 +463,12 @@ fun SettingsScreen(
             onClick = { selectedTrashIds = emptySet(); trashDialog = true },
         )
         Spacer(Modifier.height(10.dp))
-        SettingRow(icon = Icons.Rounded.Restore, title = "Очистить историю",
-            subtitle = "Файлы на устройстве сохранятся", onClick = { confirmClear = true })
+        SettingRow(
+            icon = Icons.Rounded.Restore,
+            title = "Очистить историю",
+            subtitle = "Файлы на устройстве сохранятся",
+            onClick = { confirmClear = true },
+        )
         Spacer(Modifier.height(10.dp))
         SettingRow(
             icon = Icons.Rounded.Info,
@@ -394,11 +493,22 @@ fun SettingsScreen(
                 icon = Icons.Rounded.BugReport,
                 title = "Логи",
                 subtitle = "Диагностика ошибок и экспорт .md",
-                onClick = {
-                    logText = AppLog.readText()
-                    logsDialog = true
-                },
+                onClick = { logText = AppLog.readText(); logsDialog = true },
             )
+            Spacer(Modifier.height(10.dp))
+            SettingRow(
+                icon = Icons.Rounded.AccountCircle,
+                title = "Cookies YouTube (резерв)",
+                subtitle = if (hasYouTubeCookies) {
+                    "Сессия уже есть · нажмите, чтобы заменить файлом Netscape"
+                } else {
+                    "Ручной импорт, если вход YouTube через приложение не сработал"
+                },
+                onClick = { cookiesPicker.launch(arrayOf("text/plain", "application/octet-stream")) },
+            )
+            if (hasYouTubeCookies) {
+                TextButton(onClick = onClearYouTubeCookies) { Text("Удалить сессию YouTube") }
+            }
         }
     }
 }
@@ -436,12 +546,7 @@ private fun SettingRow(
                     modifier = Modifier.size(23.dp),
                 )
             }
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 14.dp),
-            ) {
+            Column(modifier = Modifier.weight(1f).padding(start = 14.dp)) {
                 Text(title, style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(3.dp))
                 Text(
@@ -450,7 +555,6 @@ private fun SettingRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-
             when {
                 trailing != null -> trailing()
                 onClick != null -> Icon(
