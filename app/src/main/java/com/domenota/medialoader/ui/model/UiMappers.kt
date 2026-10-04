@@ -18,7 +18,7 @@ private fun MediaType.kind(): MediaKind = when (this) {
 private fun MediaType.label(): String = when (this) {
     MediaType.PHOTO -> "Фото · JPG"
     MediaType.VIDEO -> "Видео · MP4"
-    MediaType.AUDIO -> "Аудио · MP3 (из видео)"
+    MediaType.AUDIO -> "Аудио · M4A"
 }
 
 fun MediaItem.toPreviewUi(selected: Boolean) = PreviewMediaUi(
@@ -59,6 +59,7 @@ fun DownloadEntity.toUi(): DownloadUiItem {
         savedUri = savedUri,
         kind = mediaType.kind(),
         groupId = groupId,
+        providerId = providerId,
     )
 }
 
