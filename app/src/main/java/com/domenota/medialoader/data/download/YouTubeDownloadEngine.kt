@@ -13,7 +13,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * YouTube video (merged MP4) and audio-only (M4A) through yt-dlp. The file is built in the app cache
+ * YouTube video (merged MP4) and audio-only (MP3) through yt-dlp. The file is built in the app cache
  * and then handed to StorageManager, so the target folder is still decided in one place.
  */
 class YouTubeDownloadEngine(
@@ -41,7 +41,7 @@ class YouTubeDownloadEngine(
                     reporter.join()
                 }
             }
-            val uri = storage.publish(file, task.fileName, if (audioOnly) "audio/mp4" else "video/mp4")
+            val uri = storage.publish(file, task.fileName, if (audioOnly) "audio/mpeg" else "video/mp4")
             return DownloadResult(uri.toString(), file.length())
         } catch (cancelled: CancellationException) {
             throw cancelled
