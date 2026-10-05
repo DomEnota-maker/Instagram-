@@ -39,29 +39,6 @@ android {
     }
 }
 
-// Keep the proven 1.0.0 launcher-icon scheme: one ordinary bitmap in drawable-nodpi.
-// The artwork is split into small text chunks so API transport cannot truncate a large Base64 payload.
-def launcherIconChunks = [
-    file('src/main/launcher_icon_141.b64'),
-    file('src/main/launcher_icon_141_01.b64'),
-    file('src/main/launcher_icon_141_02.b64'),
-    file('src/main/launcher_icon_141_03.b64'),
-]
-def prepareLauncherIcon = tasks.register('prepareLauncherIcon') {
-    inputs.files(launcherIconChunks)
-    outputs.file(file('src/main/res/drawable-nodpi/ic_launcher.jpg'))
-    doLast {
-        def encoded = launcherIconChunks.collect { it.text.trim() }.join('')
-        def target = file('src/main/res/drawable-nodpi/ic_launcher.jpg')
-        target.parentFile.mkdirs()
-        target.bytes = java.util.Base64.getDecoder().decode(encoded)
-    }
-}
-
-tasks.configureEach { task ->
-    if (task.name == 'preBuild') task.dependsOn(prepareLauncherIcon)
-}
-
 dependencies {
     implementation platform('androidx.compose:compose-bom:2024.10.00')
     implementation 'androidx.activity:activity-compose:1.9.3'
