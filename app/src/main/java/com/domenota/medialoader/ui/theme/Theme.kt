@@ -5,6 +5,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -37,18 +38,18 @@ private val MediaLoaderColors = darkColorScheme(
     error = ErrorRed,
 )
 private val LightColors = lightColorScheme(
-    primary = Color(0xFF6640D8),
+    primary = Color(0xFF762DFF),
     onPrimary = Color.White,
     primaryContainer = Color(0xFFE9E0FF),
     onPrimaryContainer = Color(0xFF321D77),
     secondary = Color(0xFF6544B2),
-    background = Color(0xFFF6F5FA),
+    background = Color(0xFFF8F7FD),
     onBackground = Color(0xFF1D202A),
     surface = Color.White,
     onSurface = Color(0xFF1D202A),
-    surfaceVariant = Color(0xFFF0EFF6),
+    surfaceVariant = Color(0xFFF2EFFB),
     onSurfaceVariant = Color(0xFF565C69),
-    outline = Color(0xFFD7D8E1),
+    outline = Color(0xFFE3E0EF),
     error = Color(0xFFBB3348),
 )
 
@@ -93,7 +94,10 @@ private val MediaLoaderTypography = Typography(
 @Composable
 fun MediaLoaderTheme(content: @Composable () -> Unit) {
     val context = LocalContext.current
-    val dark = context.getSharedPreferences("ui", 0).getBoolean("dark", true)
+    val prefs = context.getSharedPreferences("ui", 0)
+    val mode = prefs.getString("theme", null)
+        ?: if (prefs.contains("dark")) { if (prefs.getBoolean("dark", false)) "dark" else "light" } else "light"
+    val dark = when (mode) { "dark" -> true; "system" -> isSystemInDarkTheme(); else -> false }
     MaterialTheme(
         colorScheme = if (dark) MediaLoaderColors else LightColors,
         typography = MediaLoaderTypography,

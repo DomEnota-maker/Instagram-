@@ -1,6 +1,9 @@
 package com.domenota.medialoader.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Download
@@ -37,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -46,6 +51,7 @@ import com.domenota.medialoader.ui.components.DownloadRow
 import com.domenota.medialoader.ui.components.DownloadThumbnail
 import com.domenota.medialoader.ui.components.EmptyStateCard
 import com.domenota.medialoader.ui.components.SectionTitle
+import com.domenota.medialoader.ui.components.SourceIcon
 import com.domenota.medialoader.ui.model.DownloadUiItem
 import com.domenota.medialoader.ui.model.DownloadUiState
 
@@ -154,16 +160,16 @@ fun DownloadsScreen(
                 modifier = Modifier.weight(1f),
             )
             Box {
-                IconButton(onClick = { filterMenuExpanded = true }) {
-                    Icon(
-                        imageVector = Icons.Rounded.Tune,
-                        contentDescription = "Фильтр источников",
-                        tint = if (allEnabled) {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        },
-                    )
+                Row(Modifier.background(MaterialTheme.colorScheme.primaryContainer,
+                    RoundedCornerShape(22.dp)).clickable { filterMenuExpanded = true }
+                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Tune, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                    Text("Источник", color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 6.dp))
+                    Icon(Icons.Rounded.ExpandMore, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                 }
                 DropdownMenu(
                     expanded = filterMenuExpanded,
@@ -194,7 +200,9 @@ fun DownloadsScreen(
                             text = { Text(source.label) },
                             onClick = { setEnabled(source, !checked) },
                             leadingIcon = {
-                                Icon(source.icon(), contentDescription = null)
+                                if (source == DownloadSourceFilter.OTHER)
+                                    Icon(source.icon(), contentDescription = null)
+                                else SourceIcon(source.name.lowercase(), 24.dp)
                             },
                             trailingIcon = {
                                 Checkbox(
@@ -205,6 +213,16 @@ fun DownloadsScreen(
                         )
                     }
                 }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SourceChip("Все", null, allEnabled, onClick = ::enableAll)
+            visibleSources.forEach { source ->
+                SourceChip(source.label,
+                    source.name.lowercase().takeIf { source != DownloadSourceFilter.OTHER },
+                    isEnabled(source), onClick = { setEnabled(source, !isEnabled(source)) })
             }
         }
         Spacer(Modifier.height(28.dp))
@@ -320,4 +338,20 @@ private fun DownloadItemRow(
         onRetry = { onRetryDownload(item.id) },
         onRename = { onRenameDownload(item.id, it) },
     )
+}
+
+@Composable
+private fun SourceChip(label: String, source: String?, active: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(22.dp)
+    val color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+    Row(Modifier.background(color, shape)
+        .border(1.dp, if (active) Color.Transparent else MaterialTheme.colorScheme.outline, shape)
+        .clickable(onClick = onClick).padding(horizontal = 13.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+        if (source != null) SourceIcon(source, 22.dp)
+        Text(label, color = if (active) MaterialTheme.colorScheme.onPrimary else
+            MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelLarge)
+    }
 }

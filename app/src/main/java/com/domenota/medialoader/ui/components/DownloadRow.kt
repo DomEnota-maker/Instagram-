@@ -17,6 +17,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -89,188 +93,74 @@ fun DownloadRow(
         DownloadUiState.CANCELLED -> "Отменено" to MaterialTheme.colorScheme.onSurfaceVariant
     }
 
-    AppCard(modifier = modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(9.dp)),
-                    contentAlignment = Alignment.BottomEnd,
-                ) {
-                    DownloadThumbnail(item.savedUri, item.previewUrl, item.kind, Modifier.fillMaxSize())
-                    SourceBadge(item.providerId)
-                }
-                Text(
-                    text = item.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f).padding(start = 10.dp),
-                )
-                item.sizeLabel?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
-                }
-            }
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = item.subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (item.state == DownloadUiState.FAILED) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            item.dateLabel?.let {
-                Text(
-                    it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (item.state == DownloadUiState.DOWNLOADING) {
-                Spacer(Modifier.height(10.dp))
-                SimpleProgressBar(progress = item.progress)
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Start,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(text = statusText, color = statusColor, style = MaterialTheme.typography.labelLarge)
-            }
-            when (item.state) {
-                DownloadUiState.COMPLETED -> Column {
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        TextButton(
-                            onClick = onOpen,
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 2.dp),
-                        ) { Text("Открыть", maxLines = 1, fontSize = 12.sp) }
-                        TextButton(
-                            onClick = onShare,
-                            modifier = Modifier.weight(1.35f),
-                            contentPadding = PaddingValues(horizontal = 2.dp),
-                        ) { Text("Поделиться", maxLines = 1, fontSize = 12.sp) }
-                        TextButton(
-                            onClick = onHide,
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 2.dp),
-                        ) { Text("Удалить", maxLines = 1, fontSize = 12.sp) }
-                    }
-                    TextButton(onClick = {
-                        newName = StorageNaming.editableStem(item.title)
-                        renameDialog = true
-                    }) {
-                        Text("Переименовать")
-                    }
-                }
-                DownloadUiState.QUEUED, DownloadUiState.DOWNLOADING -> Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    TextButton(onClick = onCancel) { Text("Отмена", maxLines = 1) }
-                }
-                else -> Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    TextButton(onClick = onRetry) { Text("Повторить", maxLines = 1) }
-                    TextButton(onClick = onHide) { Text("Удалить", maxLines = 1) }
-                }
-            }
-        }
+    var menuExpanded by remember { mutableStateOf(false) }
+    val sourceLabel = when (item.providerId?.lowercase()) {
+        "instagram" -> "Instagram"
+        "youtube" -> "YouTube"
+        "vk" -> "VK"
+        else -> "Другое"
     }
-}
-
-@Composable
-private fun SourceBadge(providerId: String?) {
-    when (providerId) {
-        "youtube" -> Box(
-            modifier = Modifier
-                .padding(2.dp)
-                .size(20.dp)
-                .background(Color(0xFFFF0033), RoundedCornerShape(5.5.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.PlayArrow,
-                contentDescription = "YouTube",
-                tint = Color.White,
-                modifier = Modifier.size(15.dp),
-            )
-        }
-        "instagram" -> Box(
-            modifier = Modifier
-                .padding(2.dp)
-                .size(20.dp)
-                .background(
-                    brush = Brush.linearGradient(
-                        colors = listOf(
-                            Color(0xFFFEDA75),
-                            Color(0xFFFA7E1E),
-                            Color(0xFFD62976),
-                            Color(0xFF962FBF),
-                            Color(0xFF4F5BD5),
-                        ),
-                        start = Offset(0f, 20f),
-                        end = Offset(20f, 0f),
-                    ),
-                    shape = RoundedCornerShape(5.5.dp),
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Canvas(Modifier.size(16.dp)) {
-                val stroke = 1.8.dp.toPx()
-                val inset = stroke / 2f
-                drawRoundRect(
-                    color = Color.White,
-                    topLeft = Offset(inset, inset),
-                    size = Size(size.width - stroke, size.height - stroke),
-                    cornerRadius = CornerRadius(4.1.dp.toPx(), 4.1.dp.toPx()),
-                    style = Stroke(width = stroke),
-                )
-                drawCircle(
-                    color = Color.White,
-                    radius = size.minDimension * 0.23f,
-                    center = center,
-                    style = Stroke(width = stroke),
-                )
-                drawCircle(
-                    color = Color.White,
-                    radius = size.minDimension * 0.085f,
-                    center = Offset(size.width * 0.74f, size.height * 0.26f),
-                )
+    val type = item.title.substringAfterLast('.', "").uppercase().ifBlank { item.subtitle }
+    val quality = Regex("[0-9]{3,4}p(?:60)?", RegexOption.IGNORE_CASE).find(item.title)?.value
+    AppCard(modifier = modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.size(82.dp).background(MaterialTheme.colorScheme.surfaceVariant,
+                RoundedCornerShape(14.dp))) {
+                DownloadThumbnail(item.savedUri, item.previewUrl, item.kind, Modifier.fillMaxSize())
+            }
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SourceIcon(item.providerId, 22.dp)
+                    Text(sourceLabel, style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(item.title, style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(5.dp))
+                val details = listOfNotNull(type, quality, item.sizeLabel).joinToString(" · ")
+                Text(if (item.state == DownloadUiState.FAILED) item.subtitle else details,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (item.state == DownloadUiState.FAILED) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                item.dateLabel?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (item.state != DownloadUiState.COMPLETED) {
+                    Text(statusText, style = MaterialTheme.typography.labelLarge, color = statusColor)
+                }
+            }
+            Box {
+                IconButton(onClick = { menuExpanded = true }) {
+                    Icon(Icons.Rounded.MoreVert, contentDescription = "Действия с файлом")
+                }
+                DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                    if (item.state == DownloadUiState.COMPLETED) {
+                        DropdownMenuItem(text = { Text("Открыть") }, onClick = { menuExpanded = false; onOpen() })
+                        DropdownMenuItem(text = { Text("Поделиться") }, onClick = { menuExpanded = false; onShare() })
+                        DropdownMenuItem(text = { Text("Переименовать") }, onClick = {
+                            menuExpanded = false
+                            newName = StorageNaming.editableStem(item.title)
+                            renameDialog = true
+                        })
+                        DropdownMenuItem(text = { Text("Удалить") }, onClick = { menuExpanded = false; onHide() })
+                    } else if (item.state == DownloadUiState.DOWNLOADING || item.state == DownloadUiState.QUEUED) {
+                        DropdownMenuItem(text = { Text("Отмена") }, onClick = { menuExpanded = false; onCancel() })
+                    } else {
+                        DropdownMenuItem(text = { Text("Повторить") }, onClick = { menuExpanded = false; onRetry() })
+                        DropdownMenuItem(text = { Text("Удалить") }, onClick = { menuExpanded = false; onHide() })
+                    }
+                }
             }
         }
-        "vk" -> Box(
-            modifier = Modifier
-                .padding(2.dp)
-                .size(20.dp)
-                .background(Color(0xFF0077FF), RoundedCornerShape(5.5.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "VK",
-                color = Color.White,
-                fontWeight = FontWeight.Black,
-                fontSize = 8.sp,
-                letterSpacing = (-0.5).sp,
-                maxLines = 1,
-            )
+        if (item.state == DownloadUiState.DOWNLOADING) {
+            SimpleProgressBar(item.progress)
+            Spacer(Modifier.height(10.dp))
         }
     }
 }
