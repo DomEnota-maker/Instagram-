@@ -1,0 +1,46 @@
+name: Android release
+
+on:
+  push:
+    branches:
+      - 'release/**'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android SDK 35
+        run: |
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Test, lint and assemble release
+        run: gradle :app:testDebugUnitTest :app:lintDebug :app:assembleRelease
+      - name: Stage release APK
+        id: stage
+        run: |
+          VERSION=$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" app/build.gradle | head -n1)
+          test -n "$VERSION"
+          FILE="MediaLoader_${VERSION}_unsigned.apk"
+          cp app/build/outputs/apk/release/app-release-unsigned.apk "$FILE"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "file=$FILE" >> "$GITHUB_OUTPUT"
+          sha256sum "$FILE"
+      - name: Publish unsigned APK to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.stage.outputs.version }}
+          FILE: ${{ steps.stage.outputs.file }}
+        run: |
+          TAG="medialoader-${VERSION}-unsigned-${GITHUB_RUN_ID}"
+          gh release create "$TAG" "$FILE" --prerelease --title "MediaLoader ${VERSION} unsigned" --notes "Unsigned release APK for DomEnota signing. Unit tests, lint and assembleRelease passed."
