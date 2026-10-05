@@ -308,7 +308,7 @@ class YoutubeDlAndroid(context: Context) : StreamExtractor, YtDlpDownloader {
 
     private fun finishDownload(targetDir: File, audioOnly: Boolean): File {
         val files = targetDir.listFiles().orEmpty()
-        val expected = if (audioOnly) "out.m4a" else "out.mp4"
+        val expected = if (audioOnly) "out.mp3" else "out.mp4"
         val result = files.firstOrNull { it.name == expected }
             ?: files.firstOrNull {
                 it.name.startsWith("out.") && !it.name.endsWith(".part") && !it.name.endsWith(".ytdl")
@@ -368,7 +368,9 @@ class YoutubeDlAndroid(context: Context) : StreamExtractor, YtDlpDownloader {
         if (audioOnly) {
             addOption("-f", YouTubeFormats.AUDIO_SELECTOR)
             addOption("-x")
-            addOption("--audio-format", "m4a")
+            addOption("--audio-format", "mp3")
+            addOption("--audio-quality", "192K")
+            addOption("--convert-thumbnails", "jpg")
             addOption("--embed-thumbnail")
         } else {
             addOption("-f", selector ?: YouTubeFormats.BEST_VIDEO_SELECTOR)
