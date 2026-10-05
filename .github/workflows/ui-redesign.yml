@@ -4,7 +4,7 @@ on:
     branches:
       - feature/medialoader-1-4-3-ui-redesign
 permissions:
-  contents: read
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,8 +23,13 @@ jobs:
           gradle-version: '8.9'
       - name: Test, lint and build release
         run: gradle :app:testDebugUnitTest :app:lintDebug :app:assembleRelease
-      - name: Upload unsigned APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: MediaLoader_1.4.3_UI_unsigned
-          path: app/build/outputs/apk/release/app-release-unsigned.apk
+      - name: Publish unsigned APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/release/app-release-unsigned.apk MediaLoader_1.4.3_UI_unsigned.apk
+          TAG="medialoader-1.4.3-ui-unsigned-${GITHUB_RUN_ID}"
+          gh release create "$TAG" MediaLoader_1.4.3_UI_unsigned.apk \
+            --title "MediaLoader 1.4.3 UI unsigned" \
+            --notes "Unsigned APK from the UI redesign branch. Unit tests, lint and assembleRelease passed." \
+            --prerelease --target "$GITHUB_SHA"
