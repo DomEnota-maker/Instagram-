@@ -23,14 +23,14 @@ jobs:
         with:
           gradle-version: '8.9'
       - name: Test, lint, assemble
-        run: gradle :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
-      - name: Attach APK to private prerelease
+        run: gradle :app:testDebugUnitTest :app:lintDebug :app:assembleRelease
+      - name: Stage unsigned APK for local release signing
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk MediaLoader_1.4.2_icon-fix_debug.apk
-          gh release create medialoader-1.4.2-icon-fix-20261005 MediaLoader_1.4.2_icon-fix_debug.apk \
+          cp app/build/outputs/apk/release/app-release-unsigned.apk MediaLoader_1.4.2_icon-fix_unsigned.apk
+          gh release create medialoader-1.4.2-icon-fix-unsigned-20261005 MediaLoader_1.4.2_icon-fix_unsigned.apk \
             --target "$GITHUB_SHA" \
-            --title "MediaLoader 1.4.2 icon fix (debug)" \
-            --notes "Debug APK with restored launcher icon. Tests, lint, and assembleDebug." \
+            --title "MediaLoader 1.4.2 icon fix (unsigned)" \
+            --notes "Unsigned APK for signing with the existing DomEnota release key. Tests, lint, and assembleRelease." \
             --prerelease
