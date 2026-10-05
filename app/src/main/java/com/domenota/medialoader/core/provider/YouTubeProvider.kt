@@ -83,11 +83,11 @@ class YouTubeProvider(private val extractor: StreamExtractor) : MediaProvider {
             id = "${info.id}_audio",
             providerId = ID,
             type = MediaType.AUDIO,
-            originalName = "$stem.m4a",
+            originalName = "$stem.mp3",
             downloadUrl = url,
             previewUrl = info.thumbnailUrl,
             sizeBytes = audioSize,
-            qualityLabel = "M4A",
+            qualityLabel = "MP3 · 192 kbps",
             preselected = false,
         )
         return items + audio
