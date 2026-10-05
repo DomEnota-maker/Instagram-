@@ -46,6 +46,8 @@ class VkProviderTest {
         assertTrue(items.all { it.providerId == VkProvider.ID })
         assertTrue(items.all { it.previewUrl == sampleInfo.thumbnailUrl })
         assertEquals(listOf(true, false, false), items.map { it.preselected })
+        assertEquals("VK test clip.mp3", items.last().originalName)
+        assertEquals("MP3 · 192 kbps", items.last().qualityLabel)
         assertEquals("https://vkvideo.ru/video-123_456", extractor.requested.single())
     }
 
