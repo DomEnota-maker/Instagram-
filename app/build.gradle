@@ -13,8 +13,8 @@ android {
         applicationId 'com.domenota.medialoader'
         minSdk 26
         targetSdk 35
-        versionCode 17
-        versionName '1.4.0'
+        versionCode 18
+        versionName '1.4.1'
     }
 
     buildFeatures {
@@ -37,6 +37,23 @@ android {
             excludes += '/META-INF/{AL2.0,LGPL2.1}'
         }
     }
+}
+
+// Keep the proven 1.0.0 launcher-icon scheme: one ordinary bitmap in drawable-nodpi.
+// The source artwork is stored as text so GitHub's API-only workflow can version it reliably.
+def prepareLauncherIcon = tasks.register('prepareLauncherIcon') {
+    inputs.file(file('src/main/launcher_icon_141.b64'))
+    outputs.file(file('src/main/res/drawable-nodpi/ic_launcher.jpg'))
+    doLast {
+        def source = file('src/main/launcher_icon_141.b64')
+        def target = file('src/main/res/drawable-nodpi/ic_launcher.jpg')
+        target.parentFile.mkdirs()
+        target.bytes = java.util.Base64.getDecoder().decode(source.text.trim())
+    }
+}
+
+tasks.configureEach { task ->
+    if (task.name == 'preBuild') task.dependsOn(prepareLauncherIcon)
 }
 
 dependencies {
