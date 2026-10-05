@@ -26,7 +26,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Description
@@ -441,23 +440,25 @@ fun SettingsScreen(
         Spacer(Modifier.height(10.dp))
         SettingsGroup {
             SettingRow(Icons.Rounded.Folder, "Папка загрузок", downloadFolder, grouped = true,
+                iconTone = SettingIconTone.BLUE,
                 onClick = {
                     folderName = downloadFolder.substringAfter("Download/", "MediaLoader")
                     folderDialog = true
                 })
             GroupDivider()
             SettingRow(Icons.Rounded.Key, "Ручной sessionid",
-                "Резервный вход Instagram", grouped = true,
+                "Резервный вход Instagram", grouped = true, iconTone = SettingIconTone.PURPLE,
                 onClick = { sessionInvalid = false; sessionDialog = true })
             GroupDivider()
             SettingRow(Icons.Rounded.SystemUpdate,
                 if (ytDlpUpdating) "Обновляем yt-dlp…" else "Обновить yt-dlp",
                 ytDlpUpdate ?: "Проверить и установить последнюю версию", grouped = true,
+                iconTone = SettingIconTone.BLUE,
                 onClick = if (ytDlpUpdating) null else onUpdateYtDlp)
             GroupDivider()
             SettingRow(Icons.Rounded.Notifications, "Уведомления",
                 if (!systemNotificationsAllowed) "Разрешить в настройках Android" else "О завершении загрузок",
-                grouped = true,
+                grouped = true, iconTone = SettingIconTone.AMBER,
                 onClick = {
                     if (notificationsEnabled && systemNotificationsAllowed) {
                         notificationsEnabled = false
@@ -473,14 +474,15 @@ fun SettingsScreen(
                     }) })
             GroupDivider()
             SettingRow(Icons.Rounded.Palette, "Тема", "Светлая, тёмная или системная",
-                grouped = true, onClick = { themeDialog = true })
+                grouped = true, iconTone = SettingIconTone.PURPLE,
+                onClick = { themeDialog = true })
             GroupDivider()
             SettingRow(Icons.Rounded.RestoreFromTrash, "Корзина",
-                "Удалённые файлы · $hiddenCount", grouped = true,
+                "Удалённые файлы · $hiddenCount", grouped = true, iconTone = SettingIconTone.GREEN,
                 onClick = { selectedTrashIds = emptySet(); trashDialog = true })
             GroupDivider()
             SettingRow(Icons.Rounded.DeleteSweep, "Очистить историю",
-                "Удалить список загрузок", grouped = true,
+                "Удалить список загрузок", grouped = true, iconTone = SettingIconTone.RED,
                 onClick = { confirmClear = true })
             GroupDivider()
             SettingRow(Icons.Rounded.Info, "О приложении", "Версия $versionName", grouped = true,
@@ -498,12 +500,14 @@ fun SettingsScreen(
                 })
             if (logsUnlocked) {
                 GroupDivider()
-                SettingRow(Icons.Rounded.BugReport, "Логи", "Логи и диагностика",
-                    grouped = true, onClick = { logText = AppLog.readText(); logsDialog = true })
+                SettingRow(Icons.Rounded.Description, "Логи", "Логи и диагностика",
+                    grouped = true, iconTone = SettingIconTone.BLUE,
+                    onClick = { logText = AppLog.readText(); logsDialog = true })
                 GroupDivider()
                 SettingRow(Icons.Rounded.Description, "Cookies YouTube (резерв)",
                     if (hasYouTubeCookies) "Сессия есть · нажми, чтобы заменить" else
                         "Импорт файла, если вход не сработал", grouped = true,
+                    iconTone = SettingIconTone.BLUE,
                     onClick = { cookiesPicker.launch(arrayOf("text/plain", "application/octet-stream")) })
             }
         }
@@ -520,7 +524,10 @@ private fun SettingRow(
     brand: String? = null,
     statusColor: Color? = null,
     grouped: Boolean = false,
+    iconTone: SettingIconTone = SettingIconTone.NEUTRAL,
 ) {
+    val tint = iconTone.tint
+    val iconBackground = tint.copy(alpha = if (MaterialTheme.colorScheme.background.luminance() > 0.5f) 0.12f else 0.22f)
     val content: @Composable ColumnScope.() -> Unit = {
         Row(
             modifier = Modifier
@@ -532,14 +539,14 @@ private fun SettingRow(
             if (brand != null) SourceIcon(brand, 44.dp) else Row(
                 modifier = Modifier
                     .size(44.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(14.dp)),
+                    .background(iconBackground, RoundedCornerShape(14.dp)),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = tint,
                     modifier = Modifier.size(23.dp),
                 )
             }
@@ -563,6 +570,15 @@ private fun SettingRow(
         }
     }
     if (grouped) Column(content = content) else AppCard(Modifier.fillMaxWidth(), content)
+}
+
+private enum class SettingIconTone(val tint: Color) {
+    PURPLE(Color(0xFF8744ED)),
+    BLUE(Color(0xFF2588E8)),
+    AMBER(Color(0xFFF29A27)),
+    GREEN(Color(0xFF26A84A)),
+    RED(Color(0xFFE94854)),
+    NEUTRAL(Color(0xFF68728F)),
 }
 
 @Composable

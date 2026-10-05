@@ -27,9 +27,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp app/build/outputs/apk/release/app-release-unsigned.apk MediaLoader_1.4.3_UI_unsigned.apk
-          TAG="medialoader-1.4.3-ui-unsigned-${GITHUB_RUN_ID}"
-          gh release create "$TAG" MediaLoader_1.4.3_UI_unsigned.apk \
-            --title "MediaLoader 1.4.3 UI unsigned" \
+          cp app/build/outputs/apk/release/app-release-unsigned.apk MediaLoader_1.4.4_UI_unsigned.apk
+          TAG="medialoader-1.4.4-ui-unsigned-${GITHUB_RUN_ID}"
+          gh release create "$TAG" MediaLoader_1.4.4_UI_unsigned.apk \
+            --title "MediaLoader 1.4.4 UI unsigned" \
             --notes "Unsigned APK from the UI redesign branch. Unit tests, lint and assembleRelease passed." \
             --prerelease --target "$GITHUB_SHA"
