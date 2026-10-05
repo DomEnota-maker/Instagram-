@@ -5,7 +5,7 @@ on:
       - feature/medialoader-1-4-2-icon-fix
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -24,13 +24,13 @@ jobs:
           gradle-version: '8.9'
       - name: Test, lint, assemble
         run: gradle :app:testDebugUnitTest :app:lintDebug :app:assembleRelease
-      - name: Stage unsigned APK for local release signing
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Stage unsigned APK
         run: |
           cp app/build/outputs/apk/release/app-release-unsigned.apk MediaLoader_1.4.2_icon-fix_unsigned.apk
-          gh release create medialoader-1.4.2-icon-fix-unsigned-20261005 MediaLoader_1.4.2_icon-fix_unsigned.apk \
-            --target "$GITHUB_SHA" \
-            --title "MediaLoader 1.4.2 icon fix (unsigned)" \
-            --notes "Unsigned APK for signing with the existing DomEnota release key. Tests, lint, and assembleRelease." \
-            --prerelease
+      - name: Upload unsigned APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-1.4.2-icon-fix-unsigned
+          path: MediaLoader_1.4.2_icon-fix_unsigned.apk
+          if-no-files-found: error
+          retention-days: 1
