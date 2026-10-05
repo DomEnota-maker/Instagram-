@@ -25,14 +25,20 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.DeleteSweep
+import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
-import androidx.compose.material.icons.rounded.Restore
+import androidx.compose.material.icons.rounded.PhotoCamera
+import androidx.compose.material.icons.rounded.PlayCircle
+import androidx.compose.material.icons.rounded.RestoreFromTrash
+import androidx.compose.material.icons.rounded.SystemUpdate
+import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
@@ -398,7 +404,7 @@ fun SettingsScreen(
         )
         Spacer(Modifier.height(10.dp))
         SettingRow(
-            icon = Icons.Rounded.AccountCircle,
+            icon = Icons.Rounded.PhotoCamera,
             title = "Аккаунт Instagram",
             subtitle = if (instagramSignedIn) {
                 "Сессия сохранена · нажмите, чтобы выйти"
@@ -409,7 +415,7 @@ fun SettingsScreen(
         )
         Spacer(Modifier.height(10.dp))
         SettingRow(
-            icon = Icons.Rounded.AccountCircle,
+            icon = Icons.Rounded.PlayCircle,
             title = "Аккаунт YouTube",
             subtitle = if (youtubeSignedIn) {
                 "Сессия сохранена · нажмите, чтобы выйти"
@@ -420,7 +426,7 @@ fun SettingsScreen(
         )
         Spacer(Modifier.height(10.dp))
         SettingRow(
-            icon = Icons.Rounded.AccountCircle,
+            icon = Icons.Rounded.VideoLibrary,
             title = "Аккаунт VK",
             subtitle = if (vkSignedIn) {
                 "Сессия сохранена · нажмите, чтобы выйти"
@@ -431,14 +437,14 @@ fun SettingsScreen(
         )
         Spacer(Modifier.height(10.dp))
         SettingRow(
-            icon = Icons.Rounded.AccountCircle,
+            icon = Icons.Rounded.Key,
             title = "Ручной sessionid",
             subtitle = "Резервный вход Instagram, если WebView не завершился",
             onClick = { sessionInvalid = false; sessionDialog = true },
         )
         Spacer(Modifier.height(10.dp))
         SettingRow(
-            icon = Icons.Rounded.Restore,
+            icon = Icons.Rounded.SystemUpdate,
             title = if (ytDlpUpdating) "Обновляем yt-dlp…" else "Обновить yt-dlp",
             subtitle = ytDlpUpdate ?: "Проверка обновлений выполняется автоматически при HTTP 403",
             onClick = if (ytDlpUpdating) null else onUpdateYtDlp,
@@ -482,14 +488,14 @@ fun SettingsScreen(
         )
         Spacer(Modifier.height(10.dp))
         SettingRow(
-            icon = Icons.Rounded.Restore,
+            icon = Icons.Rounded.RestoreFromTrash,
             title = "Восстановление",
             subtitle = "В корзине: $hiddenCount",
             onClick = { selectedTrashIds = emptySet(); trashDialog = true },
         )
         Spacer(Modifier.height(10.dp))
         SettingRow(
-            icon = Icons.Rounded.Restore,
+            icon = Icons.Rounded.DeleteSweep,
             title = "Очистить историю",
             subtitle = "Файлы на устройстве сохранятся",
             onClick = { confirmClear = true },
@@ -522,7 +528,7 @@ fun SettingsScreen(
             )
             Spacer(Modifier.height(10.dp))
             SettingRow(
-                icon = Icons.Rounded.AccountCircle,
+                icon = Icons.Rounded.Description,
                 title = "Cookies YouTube (резерв)",
                 subtitle = if (hasYouTubeCookies) {
                     "Сессия уже есть · нажмите, чтобы заменить файлом Netscape"
@@ -531,9 +537,6 @@ fun SettingsScreen(
                 },
                 onClick = { cookiesPicker.launch(arrayOf("text/plain", "application/octet-stream")) },
             )
-            if (hasYouTubeCookies) {
-                TextButton(onClick = onClearYouTubeCookies) { Text("Удалить сессию YouTube") }
-            }
         }
     }
 }
