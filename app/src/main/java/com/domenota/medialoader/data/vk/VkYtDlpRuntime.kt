@@ -140,7 +140,10 @@ class VkYtDlpRuntime(context: Context) : StreamExtractor, YtDlpDownloader {
             if (audioOnly) {
                 addOption("-f", VkProvider.AUDIO_SELECTOR)
                 addOption("-x")
-                addOption("--audio-format", "m4a")
+                addOption("--audio-format", "mp3")
+                addOption("--audio-quality", "192K")
+                addOption("--convert-thumbnails", "jpg")
+                addOption("--embed-thumbnail")
             } else {
                 addOption("-f", selector ?: VkProvider.BEST_VIDEO_SELECTOR)
                 addOption("--merge-output-format", "mp4")
@@ -157,7 +160,7 @@ class VkYtDlpRuntime(context: Context) : StreamExtractor, YtDlpDownloader {
         }
 
         val files = targetDir.listFiles().orEmpty()
-        val expected = if (audioOnly) "out.m4a" else "out.mp4"
+        val expected = if (audioOnly) "out.mp3" else "out.mp4"
         val result = files.firstOrNull { it.name == expected }
             ?: files.firstOrNull {
                 it.name.startsWith("out.") && !it.name.endsWith(".part") && !it.name.endsWith(".ytdl")
