@@ -6,7 +6,7 @@ on:
       - 'release/**'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   release:
@@ -26,21 +26,68 @@ jobs:
           gradle-version: '8.9'
       - name: Test, lint and assemble release
         run: gradle :app:testDebugUnitTest :app:lintDebug :app:assembleRelease
-      - name: Stage release APK
-        id: stage
+      - name: Split release APK
         run: |
-          VERSION=$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" app/build.gradle | head -n1)
-          test -n "$VERSION"
-          FILE="MediaLoader_${VERSION}_unsigned.apk"
-          cp app/build/outputs/apk/release/app-release-unsigned.apk "$FILE"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "file=$FILE" >> "$GITHUB_OUTPUT"
-          sha256sum "$FILE"
-      - name: Publish unsigned APK to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.stage.outputs.version }}
-          FILE: ${{ steps.stage.outputs.file }}
-        run: |
-          TAG="medialoader-${VERSION}-unsigned-${GITHUB_RUN_ID}"
-          gh release create "$TAG" "$FILE" --prerelease --title "MediaLoader ${VERSION} unsigned" --notes "Unsigned release APK for DomEnota signing. Unit tests, lint and assembleRelease passed."
+          sha256sum app/build/outputs/apk/release/app-release-unsigned.apk
+          split -b 20m -d -a 2 app/build/outputs/apk/release/app-release-unsigned.apk release-part-
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-00
+          path: release-part-00
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-01
+          path: release-part-01
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-02
+          path: release-part-02
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-03
+          path: release-part-03
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-04
+          path: release-part-04
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-05
+          path: release-part-05
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-06
+          path: release-part-06
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-07
+          path: release-part-07
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-08
+          path: release-part-08
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-09
+          path: release-part-09
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-10
+          path: release-part-10
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader-release-part-11
+          path: release-part-11
+          if-no-files-found: ignore
+          retention-days: 1
