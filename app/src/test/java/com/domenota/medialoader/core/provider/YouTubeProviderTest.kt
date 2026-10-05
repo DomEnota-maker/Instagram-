@@ -45,7 +45,7 @@ class YouTubeProviderTest {
                 items.map { it.id },
             )
             assertEquals(listOf(MediaType.VIDEO, MediaType.VIDEO, MediaType.VIDEO, MediaType.AUDIO), items.map { it.type })
-            assertEquals(listOf("2160p", "1080p60", "360p", "M4A"), items.map { it.qualityLabel })
+            assertEquals(listOf("2160p", "1080p60", "360p", "MP3 · 192 kbps"), items.map { it.qualityLabel })
         }
     }
 
@@ -62,7 +62,7 @@ class YouTubeProviderTest {
         runBlocking {
             val items = provider().resolve(url)
             assertEquals("Test Video A B quote_1080p.mp4", items[1].originalName)
-            assertEquals("Test Video A B quote.m4a", items.last().originalName)
+            assertEquals("Test Video A B quote.mp3", items.last().originalName)
         }
     }
 
@@ -104,7 +104,7 @@ class YouTubeProviderTest {
                 listOf(StreamFormat("140", null, false, true, "m4a", 1000, null)),
             )
             val items = provider(FakeExtractor { info }).resolve(url)
-            assertEquals(listOf("dQw4w9WgXcQ.m4a"), items.map { it.originalName })
+            assertEquals(listOf("dQw4w9WgXcQ.mp3"), items.map { it.originalName })
         }
     }
 
