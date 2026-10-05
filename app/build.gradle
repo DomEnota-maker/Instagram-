@@ -40,15 +40,21 @@ android {
 }
 
 // Keep the proven 1.0.0 launcher-icon scheme: one ordinary bitmap in drawable-nodpi.
-// The source artwork is stored as text so GitHub's API-only workflow can version it reliably.
+// The artwork is split into small text chunks so API transport cannot truncate a large Base64 payload.
+def launcherIconChunks = [
+    file('src/main/launcher_icon_141.b64'),
+    file('src/main/launcher_icon_141_01.b64'),
+    file('src/main/launcher_icon_141_02.b64'),
+    file('src/main/launcher_icon_141_03.b64'),
+]
 def prepareLauncherIcon = tasks.register('prepareLauncherIcon') {
-    inputs.file(file('src/main/launcher_icon_141.b64'))
+    inputs.files(launcherIconChunks)
     outputs.file(file('src/main/res/drawable-nodpi/ic_launcher.jpg'))
     doLast {
-        def source = file('src/main/launcher_icon_141.b64')
+        def encoded = launcherIconChunks.collect { it.text.trim() }.join('')
         def target = file('src/main/res/drawable-nodpi/ic_launcher.jpg')
         target.parentFile.mkdirs()
-        target.bytes = java.util.Base64.getDecoder().decode(source.text.trim())
+        target.bytes = java.util.Base64.getDecoder().decode(encoded)
     }
 }
 
