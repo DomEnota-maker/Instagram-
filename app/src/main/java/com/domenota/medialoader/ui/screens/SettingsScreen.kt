@@ -88,6 +88,9 @@ fun SettingsScreen(
     vkSignedIn: Boolean,
     onVkSignIn: () -> Unit,
     onVkSignOut: () -> Unit,
+    rutubeSignedIn: Boolean,
+    onRutubeSignIn: () -> Unit,
+    onRutubeSignOut: () -> Unit,
     hiddenCount: Int,
     hiddenItems: List<DownloadUiItem>,
     onChangeFolder: (String) -> Unit,
@@ -185,6 +188,7 @@ fun SettingsScreen(
     var confirmInstagramSignOut by remember { mutableStateOf(false) }
     var confirmYouTubeSignOut by remember { mutableStateOf(false) }
     var confirmVkSignOut by remember { mutableStateOf(false) }
+    var confirmRutubeSignOut by remember { mutableStateOf(false) }
     var trashDialog by remember { mutableStateOf(false) }
     var confirmEmptyTrash by remember { mutableStateOf(false) }
     var selectedTrashIds by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -223,6 +227,16 @@ fun SettingsScreen(
             TextButton(onClick = { onVkSignOut(); confirmVkSignOut = false }) { Text("Выйти") }
         },
         dismissButton = { TextButton(onClick = { confirmVkSignOut = false }) { Text("Отмена") } },
+    )
+
+    if (confirmRutubeSignOut) AlertDialog(
+        onDismissRequest = { confirmRutubeSignOut = false },
+        title = { Text("Выйти из RUTUBE?") },
+        text = { Text("Сохранённая веб-сессия RUTUBE будет удалена.") },
+        confirmButton = {
+            TextButton(onClick = { onRutubeSignOut(); confirmRutubeSignOut = false }) { Text("Выйти") }
+        },
+        dismissButton = { TextButton(onClick = { confirmRutubeSignOut = false }) { Text("Отмена") } },
     )
 
     if (trashDialog) AlertDialog(
@@ -433,6 +447,12 @@ fun SettingsScreen(
                 brand = "vk", statusColor = if (vkSignedIn) successColor() else MaterialTheme.colorScheme.error,
                 grouped = true,
                 onClick = if (vkSignedIn) ({ confirmVkSignOut = true }) else onVkSignIn)
+            GroupDivider()
+            SettingRow(icon = Icons.Rounded.PlayCircle, title = "Аккаунт RUTUBE",
+                subtitle = if (rutubeSignedIn) "Подключён" else "Не подключён",
+                brand = "rutube", statusColor = if (rutubeSignedIn) successColor() else MaterialTheme.colorScheme.error,
+                grouped = true,
+                onClick = if (rutubeSignedIn) ({ confirmRutubeSignOut = true }) else onRutubeSignIn)
         }
         Spacer(Modifier.height(26.dp))
         Text("Приложение", style = MaterialTheme.typography.titleMedium,
