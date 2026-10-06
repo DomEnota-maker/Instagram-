@@ -9,6 +9,7 @@ import com.domenota.medialoader.core.database.DownloadEntity
 import com.domenota.medialoader.core.model.MediaItem
 import com.domenota.medialoader.core.model.MediaType
 import com.domenota.medialoader.core.provider.ProviderException
+import com.domenota.medialoader.core.provider.RutubeLinkParser
 import com.domenota.medialoader.core.provider.VkLinkParser
 import com.domenota.medialoader.core.provider.YouTubeLinkParser
 import com.domenota.medialoader.core.storage.StorageNaming
@@ -65,6 +66,8 @@ class MediaLoaderViewModel(application: Application) : AndroidViewModel(applicat
     val youTubeSignedIn: StateFlow<Boolean> = _youTubeSignedIn.asStateFlow()
     private val _vkSignedIn = MutableStateFlow(repository.hasVkCookies)
     val vkSignedIn: StateFlow<Boolean> = _vkSignedIn.asStateFlow()
+    private val _rutubeSignedIn = MutableStateFlow(repository.hasRutubeSession)
+    val rutubeSignedIn: StateFlow<Boolean> = _rutubeSignedIn.asStateFlow()
 
     fun importYouTubeCookies(uri: Uri) {
         viewModelScope.launch {
@@ -157,6 +160,7 @@ class MediaLoaderViewModel(application: Application) : AndroidViewModel(applicat
                 _youTubeSignedIn.value = repository.hasYouTubeCookies
                 _youTubeCookies.value = repository.hasYouTubeCookies
                 _vkSignedIn.value = repository.hasVkCookies
+                _rutubeSignedIn.value = repository.hasRutubeSession
                 _preview.value = PreviewState(
                     analysis = if (error.reason == ProviderException.Reason.ACCESS_REQUIRED) {
                         AnalysisUiState.ACCESS_REQUIRED
@@ -306,7 +310,8 @@ class MediaLoaderViewModel(application: Application) : AndroidViewModel(applicat
         _signedIn.value = repository.isLoggedIn()
         val state = _preview.value
         if (success && state.analysis == AnalysisUiState.ACCESS_REQUIRED && state.url.isNotBlank() &&
-            YouTubeLinkParser.parse(state.url) == null && VkLinkParser.parse(state.url) == null) {
+            YouTubeLinkParser.parse(state.url) == null && VkLinkParser.parse(state.url) == null &&
+            RutubeLinkParser.parse(state.url) == null) {
             analyze(state.url)
         }
     }
@@ -330,6 +335,15 @@ class MediaLoaderViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
+    fun onRutubeLoginFinished(success: Boolean) {
+        _rutubeSignedIn.value = repository.hasRutubeSession
+        val state = _preview.value
+        if (success && repository.hasRutubeSession && state.analysis == AnalysisUiState.ACCESS_REQUIRED &&
+            state.url.isNotBlank() && RutubeLinkParser.parse(state.url) != null) {
+            analyze(state.url)
+        }
+    }
+
     fun logout() {
         repository.logout()
         _signedIn.value = false
@@ -346,12 +360,18 @@ class MediaLoaderViewModel(application: Application) : AndroidViewModel(applicat
         _vkSignedIn.value = false
     }
 
+    fun logoutRutube() {
+        repository.clearRutubeSession()
+        _rutubeSignedIn.value = false
+    }
+
     fun importSessionId(value: String): Boolean = runCatching {
         repository.importSessionId(value)
         _signedIn.value = true
         val state = _preview.value
         if (state.analysis == AnalysisUiState.ACCESS_REQUIRED && state.url.isNotBlank() &&
-            YouTubeLinkParser.parse(state.url) == null && VkLinkParser.parse(state.url) == null) {
+            YouTubeLinkParser.parse(state.url) == null && VkLinkParser.parse(state.url) == null &&
+            RutubeLinkParser.parse(state.url) == null) {
             analyze(state.url)
         }
     }.isSuccess
