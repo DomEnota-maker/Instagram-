@@ -62,6 +62,7 @@ private enum class DownloadSourceFilter(
     INSTAGRAM("Instagram", "downloads_filter_instagram"),
     YOUTUBE("YouTube", "downloads_filter_youtube"),
     VK("VK", "downloads_filter_vk"),
+    RUTUBE("RUTUBE", "downloads_filter_rutube"),
     OTHER("Другие", "downloads_filter_other"),
 }
 
@@ -69,6 +70,7 @@ private fun DownloadSourceFilter.icon(): ImageVector = when (this) {
     DownloadSourceFilter.INSTAGRAM -> Icons.Rounded.PhotoCamera
     DownloadSourceFilter.YOUTUBE -> Icons.Rounded.PlayCircle
     DownloadSourceFilter.VK -> Icons.Rounded.VideoLibrary
+    DownloadSourceFilter.RUTUBE -> Icons.Rounded.PlayCircle
     DownloadSourceFilter.OTHER -> Icons.Rounded.Folder
 }
 
@@ -76,6 +78,7 @@ private fun sourceOf(providerId: String?): DownloadSourceFilter = when (provider
     "instagram" -> DownloadSourceFilter.INSTAGRAM
     "youtube" -> DownloadSourceFilter.YOUTUBE
     "vk" -> DownloadSourceFilter.VK
+    "rutube" -> DownloadSourceFilter.RUTUBE
     else -> DownloadSourceFilter.OTHER
 }
 
@@ -94,6 +97,7 @@ fun DownloadsScreen(
     var instagramEnabled by rememberSaveable { mutableStateOf(prefs.getBoolean(DownloadSourceFilter.INSTAGRAM.preferenceKey, true)) }
     var youtubeEnabled by rememberSaveable { mutableStateOf(prefs.getBoolean(DownloadSourceFilter.YOUTUBE.preferenceKey, true)) }
     var vkEnabled by rememberSaveable { mutableStateOf(prefs.getBoolean(DownloadSourceFilter.VK.preferenceKey, true)) }
+    var rutubeEnabled by rememberSaveable { mutableStateOf(prefs.getBoolean(DownloadSourceFilter.RUTUBE.preferenceKey, true)) }
     var otherEnabled by rememberSaveable { mutableStateOf(prefs.getBoolean(DownloadSourceFilter.OTHER.preferenceKey, true)) }
     var filterMenuExpanded by rememberSaveable { mutableStateOf(false) }
 
@@ -102,6 +106,7 @@ fun DownloadsScreen(
         add(DownloadSourceFilter.INSTAGRAM)
         add(DownloadSourceFilter.YOUTUBE)
         add(DownloadSourceFilter.VK)
+        add(DownloadSourceFilter.RUTUBE)
         if (hasOther) add(DownloadSourceFilter.OTHER)
     }
 
@@ -109,6 +114,7 @@ fun DownloadsScreen(
         DownloadSourceFilter.INSTAGRAM -> instagramEnabled
         DownloadSourceFilter.YOUTUBE -> youtubeEnabled
         DownloadSourceFilter.VK -> vkEnabled
+        DownloadSourceFilter.RUTUBE -> rutubeEnabled
         DownloadSourceFilter.OTHER -> otherEnabled
     }
 
@@ -120,6 +126,7 @@ fun DownloadsScreen(
             DownloadSourceFilter.INSTAGRAM -> instagramEnabled = enabled
             DownloadSourceFilter.YOUTUBE -> youtubeEnabled = enabled
             DownloadSourceFilter.VK -> vkEnabled = enabled
+            DownloadSourceFilter.RUTUBE -> rutubeEnabled = enabled
             DownloadSourceFilter.OTHER -> otherEnabled = enabled
         }
         prefs.edit().putBoolean(source.preferenceKey, enabled).apply()
@@ -129,11 +136,13 @@ fun DownloadsScreen(
         instagramEnabled = true
         youtubeEnabled = true
         vkEnabled = true
+        rutubeEnabled = true
         if (hasOther) otherEnabled = true
         prefs.edit()
             .putBoolean(DownloadSourceFilter.INSTAGRAM.preferenceKey, true)
             .putBoolean(DownloadSourceFilter.YOUTUBE.preferenceKey, true)
             .putBoolean(DownloadSourceFilter.VK.preferenceKey, true)
+            .putBoolean(DownloadSourceFilter.RUTUBE.preferenceKey, true)
             .putBoolean(DownloadSourceFilter.OTHER.preferenceKey, true)
             .apply()
     }
