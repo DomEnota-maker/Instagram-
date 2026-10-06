@@ -98,6 +98,7 @@ fun DownloadRow(
         "instagram" -> "Instagram"
         "youtube" -> "YouTube"
         "vk" -> "VK"
+        "rutube" -> "RUTUBE"
         else -> "Другое"
     }
     val type = item.title.substringAfterLast('.', "").uppercase().ifBlank { item.subtitle }
