@@ -251,8 +251,52 @@ private val browserScript = """
     lastLocation = location.href;
     MediaLoaderBridge.location(lastLocation);
   }
+  var recoveryUntil = Date.now() + 15000;
+  function recoverInstagramHome() {
+    if (source !== 'instagram' || location.pathname !== '/' || Date.now() > recoveryUntil) return;
+    var labels = Array.from(document.querySelectorAll('body *')).filter(function(el) {
+      return el.children.length === 0 && /^(Использовать приложение|Use the app|Open in app)$/i.test((el.textContent || '').trim());
+    });
+    labels.forEach(function(label) {
+      var bar = label;
+      for (var i = 0; i < 4 && bar.parentElement; i++) {
+        bar = bar.parentElement;
+        var rect = bar.getBoundingClientRect();
+        if (rect.width > innerWidth * .7 && rect.height < 140 && rect.bottom > innerHeight * .7) {
+          var close = Array.from(bar.querySelectorAll('button,[role="button"]')).find(function(el) {
+            var name = (el.getAttribute('aria-label') || el.textContent || '').trim();
+            return /^(×|✕|✖|x|close|закрыть|not now|не сейчас)$/i.test(name);
+          });
+          if (close) close.click();
+          break;
+        }
+      }
+    });
+    var locked = ['hidden', 'clip'].indexOf(getComputedStyle(document.body).overflowY) >= 0;
+    if (!locked) return;
+    var dialogs = Array.from(document.querySelectorAll('[role="dialog"],[aria-modal="true"]'));
+    var visible = dialogs.some(function(el) {
+      var r = el.getBoundingClientRect();
+      if (!(r.width > 50 && r.height > 50 && r.bottom > 0 && r.top < innerHeight)) return false;
+      return Array.from(el.querySelectorAll('button,a,input,[role="button"]')).some(function(control) {
+        var c = control.getBoundingClientRect();
+        return c.width > 0 && c.height > 0 && c.bottom > 0 && c.top < innerHeight;
+      });
+    });
+    if (visible) return;
+    dialogs.forEach(function(el) { el.remove(); });
+    Array.from(document.querySelectorAll('body *')).forEach(function(el) {
+      var style = getComputedStyle(el), r = el.getBoundingClientRect();
+      if (style.position === 'fixed' && r.width >= innerWidth * .95 &&
+          r.height >= innerHeight * .85 && style.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+          !el.querySelector('article,main,nav')) el.remove();
+    });
+    document.body.style.overflow = 'auto';
+    document.documentElement.style.overflow = 'auto';
+  }
   function decorate() {
     report();
+    recoverInstagramHome();
     var anchors = document.querySelectorAll('a[href]'), count = 0;
     for (var i = 0; i < anchors.length && count < 80; i++) {
       var a = anchors[i];
@@ -280,5 +324,11 @@ private val browserScript = """
   window.addEventListener('popstate', report);
   window.addEventListener('hashchange', report);
   decorate();
+  if (source === 'instagram') {
+    var recovery = setInterval(function() {
+      if (Date.now() > recoveryUntil || location.pathname !== '/') clearInterval(recovery);
+      else recoverInstagramHome();
+    }, 900);
+  }
 })();
 """.trimIndent()

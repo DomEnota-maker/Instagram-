@@ -201,6 +201,17 @@ private fun VideoAudioSelectionSheet(
                 Text("Видео", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 MediaRow(item, onToggle = { onToggleItem(item.id) })
             }
+            if (sourceHost(url).endsWith("youtube.com") &&
+                items.count { it.kind == MediaKind.VIDEO } == 1 &&
+                items.any { it.kind == MediaKind.VIDEO && it.subtitle.startsWith("360p") }) {
+                Text(
+                    "YouTube вернул только 360p для этого ролика. Другие качества пока недоступны; " +
+                        "можно попробовать обновить yt-dlp в настройках.",
+                    modifier = Modifier.padding(top = 12.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
         GradientActionButton(text = if (busy) "Добавляем…" else "Скачать",
             onClick = onDownloadSelected, enabled = items.any { it.selected } && !busy)
