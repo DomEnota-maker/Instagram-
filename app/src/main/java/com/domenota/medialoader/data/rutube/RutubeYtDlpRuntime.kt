@@ -233,6 +233,10 @@ class RutubeYtDlpRuntime(context: Context) : StreamExtractor, YtDlpDownloader {
 
     private fun failureMessage(error: YoutubeDLException): String {
         val text = error.message.orEmpty()
+        if (text.contains("handshake operation timed out", ignoreCase = true) ||
+            text.contains("timed out", ignoreCase = true)) {
+            return "Истекло время соединения с RUTUBE. Проверь сеть или VPN и повтори попытку."
+        }
         if (AUTH_MARKERS.any { text.contains(it, ignoreCase = true) }) {
             return "RUTUBE требует вход в аккаунт. Открой Настройки → Аккаунт RUTUBE."
         }

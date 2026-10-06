@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import android.net.Uri
 import com.domenota.medialoader.ui.components.AppCard
 import com.domenota.medialoader.ui.components.GradientActionButton
 import com.domenota.medialoader.ui.components.RemotePreview
@@ -50,6 +51,10 @@ import com.domenota.medialoader.ui.model.AnalysisUiState
 import com.domenota.medialoader.ui.model.MediaKind
 import com.domenota.medialoader.ui.model.PreviewMediaUi
 import com.domenota.medialoader.ui.theme.AccentPurple
+
+private fun sourceHost(url: String): String = runCatching {
+    Uri.parse(url).host?.removePrefix("www.") ?: ""
+}.getOrDefault("")
 
 @Composable
 fun PreviewScreen(
@@ -104,7 +109,7 @@ fun PreviewScreen(
 
         Text(
             text = when (state) {
-                AnalysisUiState.PREVIEW_READY -> if (asSheet) "Скопированная ссылка" else "Найденное медиа"
+                AnalysisUiState.PREVIEW_READY -> if (asSheet) "Выбранный материал" else "Найденное медиа"
                 AnalysisUiState.ACCESS_REQUIRED -> "Нужна авторизация"
                 AnalysisUiState.ERROR -> "Не удалось проверить ссылку"
                 else -> "Проверяем ссылку…"
@@ -123,7 +128,7 @@ fun PreviewScreen(
                 Column(Modifier.weight(1f)) {
                     Text(url, maxLines = 2, overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.bodyMedium)
-                    Text(if (url.contains("youtu", ignoreCase = true)) "youtube.com" else "instagram.com",
+                    Text(sourceHost(url),
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -169,7 +174,7 @@ private fun VideoAudioSelectionSheet(
 ) {
     val height = (LocalConfiguration.current.screenHeightDp * 0.78f).dp
     Column(Modifier.fillMaxWidth().height(height).padding(horizontal = 20.dp, vertical = 16.dp)) {
-        Text("Скопированная ссылка", style = MaterialTheme.typography.headlineMedium)
+        Text("Выбранный материал", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(14.dp))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -179,7 +184,7 @@ private fun VideoAudioSelectionSheet(
             }
             Column(Modifier.weight(1f)) {
                 Text(url, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(if (url.contains("youtu", ignoreCase = true)) "youtube.com" else "instagram.com",
+                Text(sourceHost(url),
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
@@ -216,7 +221,7 @@ private fun PhotoSelectionSheet(
     val selected = photos.count { it.selected }
     val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.78f).dp
     Column(Modifier.fillMaxWidth().height(maxHeight).padding(horizontal = 16.dp)) {
-        Text("Скопированная ссылка", style = MaterialTheme.typography.titleLarge)
+        Text("Выбранный материал", style = MaterialTheme.typography.titleLarge)
         Row(Modifier.fillMaxWidth().clickable(onClick = onToggleAllPhotos)
             .padding(vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             SelectionMark(selected == photos.size)

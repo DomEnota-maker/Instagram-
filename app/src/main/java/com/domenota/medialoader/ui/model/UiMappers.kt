@@ -65,5 +65,8 @@ fun DownloadEntity.toUi(): DownloadUiItem {
 
 /** Audio tracks are offered next to every video but are never selected by default. */
 fun List<MediaItem>.defaultSelectedIds(): Set<String> =
-    filter { if (it.providerId == "youtube") it.preselected else it.type != MediaType.AUDIO }
+    filter { item ->
+        if (item.group != null || item.providerId == "youtube") item.preselected
+        else item.type != MediaType.AUDIO
+    }
         .map { it.id }.toSet()

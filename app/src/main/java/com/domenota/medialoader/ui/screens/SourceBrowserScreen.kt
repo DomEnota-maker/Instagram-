@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -104,6 +105,7 @@ fun SourceBrowserScreen(source: BrowserSource, onBack: () -> Unit, onDownload: (
     val context = LocalContext.current
     val currentDownload by rememberUpdatedState(onDownload)
     var progress by remember { mutableIntStateOf(0) }
+    var pageUrl by remember(source) { mutableStateOf(source.startUrl) }
 
     val web = remember(source) {
         WebView(context).apply {
@@ -124,6 +126,9 @@ fun SourceBrowserScreen(source: BrowserSource, onBack: () -> Unit, onDownload: (
                 mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             }
             addJavascriptInterface(object {
+                @JavascriptInterface fun location(url: String) {
+                    view.post { if (source.isSite(url)) pageUrl = url }
+                }
                 @JavascriptInterface fun pick(link: String) {
                     view.post {
                         if (!source.isSite(view.url)) return@post
@@ -146,9 +151,11 @@ fun SourceBrowserScreen(source: BrowserSource, onBack: () -> Unit, onDownload: (
 
                 override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
                     progress = 0
+                    pageUrl = url.orEmpty()
                 }
 
                 override fun onPageFinished(view: WebView, url: String?) {
+                    pageUrl = url.orEmpty()
                     if (source.isSite(url)) view.evaluateJavascript(browserScript.replace("__SOURCE__", source.id), null)
                 }
             }
@@ -176,16 +183,18 @@ fun SourceBrowserScreen(source: BrowserSource, onBack: () -> Unit, onDownload: (
         }
         if (progress in 0..99) LinearProgressIndicator(Modifier.fillMaxWidth())
         AndroidView(factory = { web }, modifier = Modifier.weight(1f).fillMaxWidth())
-        Button(
-            onClick = {
-                if (source.isSite(web.url)) {
-                    web.evaluateJavascript(browserScript.replace("__SOURCE__", source.id), null)
-                    web.evaluateJavascript("window.MediaLoaderPick && window.MediaLoaderPick()", null)
-                } else Toast.makeText(context, "Вернись на страницу ${source.title}", Toast.LENGTH_SHORT).show()
-            },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        ) {
-            Text("Скачать")
+        if (source.acceptedLink(pageUrl) != null) {
+            Button(
+                onClick = {
+                    source.acceptedLink(pageUrl)?.let { link ->
+                        runCatching { syncSession(source, context.applicationContext) }
+                        currentDownload(link)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                Text("Скачать")
+            }
         }
     }
 }
@@ -212,12 +221,12 @@ private fun syncSession(source: BrowserSource, context: android.content.Context)
     }
 }
 
-/** In-page buttons follow dynamic feeds. The fixed native button remains visible if a site changes markup. */
+/** Compact in-page actions follow feed cards; the native action appears only on a media URL. */
 private val browserScript = """
 (function () {
-  if (window.__mediaLoaderInstalled) return;
-  window.__mediaLoaderInstalled = true;
   var source = '__SOURCE__';
+  if (window.__mediaLoaderInstalled === source) return;
+  window.__mediaLoaderInstalled = source;
   function valid(url) {
     try {
       var u = new URL(url, location.href), p = u.pathname;
@@ -228,45 +237,48 @@ private val browserScript = """
       return /(^|\.)rutube\.ru$/.test(u.hostname) && (/^\/(live\/)?video\/(private\/)?[0-9a-fA-F]{32}\/?.*$/.test(p) || /^\/(play\/)?embed\/[0-9A-Za-z]+\/?$/.test(p));
     } catch (_) { return false; }
   }
-  function send(url) { MediaLoaderBridge.pick(valid(url) ? new URL(url, location.href).href : ''); }
-  function nearestLink(card) {
-    var links = card.querySelectorAll('a[href]');
-    for (var i = 0; i < links.length; i++) if (valid(links[i].href)) return links[i].href;
-    return '';
-  }
+  function send(url) { if (valid(url)) MediaLoaderBridge.pick(new URL(url, location.href).href); }
   function cardFor(anchor) {
     var selector = source === 'instagram' ? 'article' :
-      source === 'youtube' ? 'ytd-rich-grid-media,ytd-video-renderer,ytm-rich-item-renderer,ytm-compact-video-renderer' :
-      source === 'vk' ? '[data-post-id],.VideoCard,.video_item' :
+      source === 'youtube' ? 'ytm-rich-item-renderer,ytm-compact-video-renderer,ytm-video-with-context-renderer,ytm-item-section-renderer ytm-video-card-renderer,ytd-rich-grid-media,ytd-video-renderer' :
+      source === 'vk' ? '[data-post-id],.VideoCard,.video_item,.video_card' :
       '.video-card,.video-card-container,article';
-    return anchor.closest(selector) || anchor.parentElement;
+    return anchor.closest(selector);
+  }
+  var lastLocation = '';
+  function report() {
+    if (lastLocation === location.href) return;
+    lastLocation = location.href;
+    MediaLoaderBridge.location(lastLocation);
   }
   function decorate() {
+    report();
     var anchors = document.querySelectorAll('a[href]'), count = 0;
-    for (var i = 0; i < anchors.length && count < 150; i++) {
+    for (var i = 0; i < anchors.length && count < 80; i++) {
       var a = anchors[i];
       if (!valid(a.href)) continue;
       var card = cardFor(a);
       if (!card || card.querySelector('[data-medialoader-download]')) continue;
       var url = a.href;
       var b = document.createElement('button');
-      b.type = 'button'; b.textContent = '⬇ Скачать';
+      b.type = 'button';
+      b.innerHTML = '<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 19h16"/></svg>';
       b.setAttribute('data-medialoader-download', '1');
-      b.style.cssText = 'display:block;position:relative;z-index:2147483647;margin:8px 12px;padding:11px 18px;border:0;border-radius:14px;background:#7638e8;color:white;font:bold 15px system-ui,sans-serif;box-shadow:0 3px 12px #0006;cursor:pointer';
+      b.setAttribute('aria-label', 'Скачать этот материал');
+      b.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;position:relative;z-index:2;width:40px;height:40px;max-width:100%;flex:0 0 40px;margin:6px;border:0;border-radius:12px;background:#7638e8;color:white;font:600 26px system-ui,sans-serif;line-height:1;box-sizing:border-box;cursor:pointer';
       b.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); send(this.dataset.url); });
       b.dataset.url = url;
       card.appendChild(b); count++;
     }
   }
-  window.MediaLoaderPick = function () {
-    if (valid(location.href)) return send(location.href);
-    var buttons = Array.from(document.querySelectorAll('[data-medialoader-download]'));
-    var visible = buttons.find(function(b) { var r = b.getBoundingClientRect(); return r.top >= 0 && r.top < innerHeight - 40; });
-    send(visible ? visible.dataset.url : '');
-  };
   var timer;
-  new MutationObserver(function () { clearTimeout(timer); timer = setTimeout(decorate, 180); })
+  new MutationObserver(function (records) {
+    if (records.every(function(r) { return r.addedNodes.length && Array.from(r.addedNodes).every(function(n) { return n.nodeType === 1 && n.hasAttribute('data-medialoader-download'); }); })) return;
+    clearTimeout(timer); timer = setTimeout(decorate, 300);
+  })
     .observe(document.documentElement, {childList:true,subtree:true});
+  window.addEventListener('popstate', report);
+  window.addEventListener('hashchange', report);
   decorate();
 })();
 """.trimIndent()

@@ -59,7 +59,13 @@ object RemoteImageLoader {
         val host = uri.host?.lowercase() ?: return null
         val youtubeImage = host == "i.ytimg.com" || host.endsWith(".ytimg.com") ||
             host == "i9.ytimg.com" || host.endsWith(".googleusercontent.com")
-        return if (youtubeImage) PreviewSource("https://www.youtube.com/") else null
+        val rutubeImage = host == "rutubelist.ru" || host.endsWith(".rutubelist.ru") ||
+            host == "rutube.ru" || host.endsWith(".rutube.ru")
+        return when {
+            youtubeImage -> PreviewSource("https://www.youtube.com/")
+            rutubeImage -> PreviewSource("https://rutube.ru/")
+            else -> null
+        }
     }
 
     private data class PreviewSource(val referer: String)

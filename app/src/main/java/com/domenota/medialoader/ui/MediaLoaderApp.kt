@@ -296,7 +296,10 @@ fun MediaLoaderApp(
                         showPicker = true
                     },
                     onOpenDownloads = goToDownloads,
-                    onOpenSource = { source -> navController.navigate("browser/$source") },
+                    onOpenSource = { source ->
+                        showPicker = false
+                        navController.navigate("browser/$source")
+                    },
                     recentDownloads = downloadItems.take(3),
                     onOpenDownload = openDownload,
                     onCancelDownload = viewModel::cancelDownload,
