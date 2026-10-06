@@ -24,6 +24,12 @@ jobs:
           gradle-version: '8.9'
       - name: Test, lint and build release
         run: gradle :app:testDebugUnitTest :app:lintDebug :app:assembleRelease
+      - name: Upload unsigned APK for signing
+        uses: actions/upload-artifact@v4
+        with:
+          name: MediaLoader_1.4.5_RUTUBE_unsigned
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          retention-days: 1
       - name: Publish unsigned APK
         env:
           GH_TOKEN: ${{ github.token }}
