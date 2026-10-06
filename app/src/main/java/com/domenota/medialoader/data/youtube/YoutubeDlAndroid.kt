@@ -216,7 +216,18 @@ class YoutubeDlAndroid(context: Context) : StreamExtractor, YtDlpDownloader {
             }
         }
         return try {
-            YtDlpJson.parse(output.trim()).also { info ->
+            val initial = YtDlpJson.parse(output.trim())
+            val initialHeight = initial.formats.mapNotNull { it.height }.maxOrNull() ?: 0
+            val info = if (initialHeight in 1..360) {
+                val alternate = runCatching {
+                    YtDlpJson.parse(executeExtract(url, ALTERNATE_EXTRACTOR_ARGS).trim())
+                }.getOrNull()
+                currentCoroutineContext().ensureActive()
+                alternate?.takeIf { candidate ->
+                    (candidate.formats.mapNotNull { it.height }.maxOrNull() ?: 0) > initialHeight
+                } ?: initial
+            } else initial
+            info.also {
                 AppLog.i("YouTube", "Analyze success · id=${info.id} · formats=${info.formats.size}")
             }
         } catch (error: JSONException) {
@@ -257,6 +268,19 @@ class YoutubeDlAndroid(context: Context) : StreamExtractor, YtDlpDownloader {
             )
         } catch (error: YoutubeDLException) {
             currentCoroutineContext().ensureActive()
+            if (!audioOnly && selector != null && isFormatUnavailable(error)) {
+                removePartialOutput(targetDir)
+                try {
+                    executeDownload(
+                        buildDownloadRequest(url, selector, false, targetDir, ALTERNATE_EXTRACTOR_ARGS),
+                        onProgress,
+                    )
+                    return finishDownload(targetDir, false)
+                } catch (retryError: YoutubeDLException) {
+                    currentCoroutineContext().ensureActive()
+                    AppLog.w("YouTube", "Alternate player did not provide selected format", retryError)
+                }
+            }
             if (!isHttp403(error)) {
                 AppLog.e("YouTube", "Download failed: ${error.message}", error)
                 throw DownloadFailure(failureMessage(error), error)
@@ -448,9 +472,13 @@ class YoutubeDlAndroid(context: Context) : StreamExtractor, YtDlpDownloader {
             text.contains("403: Forbidden", ignoreCase = true)
     }
 
+    private fun isFormatUnavailable(error: YoutubeDLException): Boolean =
+        error.message.orEmpty().contains("Requested format is not available", ignoreCase = true)
+
     private companion object {
         const val MAX_COOKIE_BYTES = 2L * 1024 * 1024
         const val PRIMARY_EXTRACTOR_ARGS = "youtube:player_client=default,web_embedded"
+        const val ALTERNATE_EXTRACTOR_ARGS = "youtube:player_client=android,default"
         const val EMBEDDED_EXTRACTOR_ARGS = "youtube:player_client=web_embedded"
         const val KEY_LAST_UPDATE = "last_update_ms"
         const val KEY_LAST_AUTO_ATTEMPT = "last_auto_update_attempt_ms"
