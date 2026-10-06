@@ -51,6 +51,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.domenota.medialoader.BuildConfig
 import com.domenota.medialoader.core.provider.InstagramLinkParser
+import com.domenota.medialoader.core.provider.RutubeLinkParser
 import com.domenota.medialoader.core.provider.VkLinkParser
 import com.domenota.medialoader.core.provider.YouTubeLinkParser
 import com.domenota.medialoader.core.storage.StorageNaming
@@ -92,6 +93,7 @@ fun MediaLoaderApp(
     val signedIn by viewModel.signedIn.collectAsStateWithLifecycle()
     val youtubeSignedIn by viewModel.youTubeSignedIn.collectAsStateWithLifecycle()
     val vkSignedIn by viewModel.vkSignedIn.collectAsStateWithLifecycle()
+    val rutubeSignedIn by viewModel.rutubeSignedIn.collectAsStateWithLifecycle()
     val youtubeCookies by viewModel.youTubeCookies.collectAsStateWithLifecycle()
     val ytDlpUpdate by viewModel.ytDlpUpdate.collectAsStateWithLifecycle()
     val ytDlpUpdating by viewModel.ytDlpUpdating.collectAsStateWithLifecycle()
@@ -128,11 +130,18 @@ fun MediaLoaderApp(
     val startVkLogin: () -> Unit = {
         vkLoginLauncher.launch(Intent(context, VkLoginActivity::class.java))
     }
+    val rutubeLoginLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        viewModel.onRutubeLoginFinished(result.resultCode == Activity.RESULT_OK)
+    }
+    val startRutubeLogin: () -> Unit = {
+        rutubeLoginLauncher.launch(Intent(context, RutubeLoginActivity::class.java))
+    }
     val startLoginForCurrentUrl: () -> Unit = {
         val target = preview.url.ifBlank { pendingUrl }
         when {
             YouTubeLinkParser.parse(target) != null -> startYouTubeLogin()
             VkLinkParser.parse(target) != null -> startVkLogin()
+            RutubeLinkParser.parse(target) != null -> startRutubeLogin()
             else -> startLogin()
         }
     }
@@ -208,7 +217,7 @@ fun MediaLoaderApp(
             checkedClipboardAtLaunch = true
             val candidate = clipboardManager.getText()?.text?.let(::extractFirstUrl) ?: return
             if (InstagramLinkParser.parse(candidate) == null && YouTubeLinkParser.parse(candidate) == null &&
-                VkLinkParser.parse(candidate) == null) return
+                VkLinkParser.parse(candidate) == null && RutubeLinkParser.parse(candidate) == null) return
             if (candidate == dismissedClipboard) return
             if (firstCheck || pendingUrl.isBlank() || pendingUrl == lastImportedClipboard) {
                 pendingUrl = candidate
@@ -315,6 +324,9 @@ fun MediaLoaderApp(
                     vkSignedIn = vkSignedIn,
                     onVkSignIn = startVkLogin,
                     onVkSignOut = viewModel::logoutVk,
+                    rutubeSignedIn = rutubeSignedIn,
+                    onRutubeSignIn = startRutubeLogin,
+                    onRutubeSignOut = viewModel::logoutRutube,
                     hiddenCount = hiddenCount,
                     hiddenItems = hiddenItems.map { entry ->
                         entry.toUi().copy(savedUri = viewModel.trashedUri(entry.id))
