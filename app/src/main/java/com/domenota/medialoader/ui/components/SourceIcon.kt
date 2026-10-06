@@ -3,6 +3,7 @@ package com.domenota.medialoader.ui.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -28,6 +29,7 @@ fun SourceIcon(providerId: String?, size: Dp = 42.dp, modifier: Modifier = Modif
         "instagram" -> Brush.linearGradient(listOf(Color(0xFF7046E8), Color(0xFFD62E97), Color(0xFFFFA33B)))
         "youtube" -> Brush.linearGradient(listOf(Color(0xFFFF3341), Color(0xFFE6212E)))
         "vk" -> Brush.linearGradient(listOf(Color(0xFF278BFF), Color(0xFF0860D7)))
+        "rutube" -> Brush.linearGradient(listOf(Color(0xFF24113F), Color(0xFF080713)))
         else -> Brush.linearGradient(listOf(Color(0xFF8064CB), Color(0xFF6044A8)))
     }
     Box(modifier.size(size).background(fill, shape), contentAlignment = Alignment.Center) {
@@ -53,6 +55,17 @@ fun SourceIcon(providerId: String?, size: Dp = 42.dp, modifier: Modifier = Modif
             }
             "vk" -> Text("VK", color = Color.White, fontWeight = FontWeight.Black,
                 fontSize = (size.value * 0.36f).sp)
+            "rutube" -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("R", color = Color.White, fontWeight = FontWeight.Black,
+                    fontSize = (size.value * 0.50f).sp)
+                Canvas(Modifier.fillMaxSize()) {
+                    drawCircle(
+                        color = Color(0xFFFF214E),
+                        radius = this.size.minDimension * 0.085f,
+                        center = Offset(this.size.width * 0.73f, this.size.height * 0.27f),
+                    )
+                }
+            }
             else -> Text("•", color = Color.White, fontWeight = FontWeight.Bold)
         }
     }
