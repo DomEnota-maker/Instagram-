@@ -272,8 +272,18 @@ private val browserScript = """
         }
       }
     });
-    var locked = ['hidden', 'clip'].indexOf(getComputedStyle(document.body).overflowY) >= 0;
-    if (!locked) return;
+    var locked = [document.body, document.documentElement].some(function(el) {
+      return ['hidden', 'clip'].indexOf(getComputedStyle(el).overflowY) >= 0;
+    });
+    var chain = [], top = document.elementFromPoint(innerWidth / 2, innerHeight / 2);
+    while (top && top !== document.body) { chain.push(top); top = top.parentElement; }
+    var covers = chain.filter(function(el) {
+      var style = getComputedStyle(el), r = el.getBoundingClientRect();
+      return style.position === 'fixed' && r.width >= innerWidth * .95 &&
+        r.height >= innerHeight * .85 && style.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+        !el.querySelector('article,main,nav');
+    });
+    if (!locked && !covers.length) return;
     var dialogs = Array.from(document.querySelectorAll('[role="dialog"],[aria-modal="true"]'));
     var visible = dialogs.some(function(el) {
       var r = el.getBoundingClientRect();
@@ -285,12 +295,7 @@ private val browserScript = """
     });
     if (visible) return;
     dialogs.forEach(function(el) { el.remove(); });
-    Array.from(document.querySelectorAll('body *')).forEach(function(el) {
-      var style = getComputedStyle(el), r = el.getBoundingClientRect();
-      if (style.position === 'fixed' && r.width >= innerWidth * .95 &&
-          r.height >= innerHeight * .85 && style.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
-          !el.querySelector('article,main,nav')) el.remove();
-    });
+    covers.forEach(function(el) { el.remove(); });
     document.body.style.overflow = 'auto';
     document.documentElement.style.overflow = 'auto';
   }
