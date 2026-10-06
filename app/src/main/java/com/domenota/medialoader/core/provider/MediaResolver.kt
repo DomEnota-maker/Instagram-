@@ -15,7 +15,7 @@ class DefaultMediaResolver(private val providers: List<MediaProvider>) : MediaRe
     override suspend fun resolve(url: String): List<MediaItem> {
         val provider = providers.firstOrNull { it.supports(url) } ?: throw ProviderException(
             ProviderException.Reason.UNSUPPORTED,
-            "Поддерживаются ссылки Instagram, YouTube и VK.",
+            "Поддерживаются ссылки Instagram, YouTube, VK и RUTUBE.",
         )
         val items = provider.resolve(url)
         // Unknown public pages may still contain audio; an explicit false from Instagram suppresses it.
