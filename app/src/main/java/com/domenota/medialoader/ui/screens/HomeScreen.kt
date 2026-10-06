@@ -1,6 +1,7 @@
 package com.domenota.medialoader.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -47,6 +48,7 @@ fun HomeScreen(
     onPasteClick: () -> Unit,
     onCheckClick: () -> Unit,
     onOpenDownloads: () -> Unit,
+    onOpenSource: (String) -> Unit = {},
     recentDownloads: List<DownloadUiItem> = emptyList(),
     onOpenDownload: (String) -> Unit = {},
     onCancelDownload: (String) -> Unit = {},
@@ -64,13 +66,13 @@ fun HomeScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(22.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SourceCard("instagram", "Instagram", "Фото и видео", Modifier.weight(1f))
-            SourceCard("youtube", "YouTube", "Видео и музыка", Modifier.weight(1f))
+            SourceCard("instagram", "Instagram", "Фото и видео", Modifier.weight(1f), onOpenSource)
+            SourceCard("youtube", "YouTube", "Видео и музыка", Modifier.weight(1f), onOpenSource)
         }
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SourceCard("vk", "VK", "Фото и видео", Modifier.weight(1f))
-            SourceCard("rutube", "RUTUBE", "Видео и музыка", Modifier.weight(1f))
+            SourceCard("vk", "VK", "Фото и видео", Modifier.weight(1f), onOpenSource)
+            SourceCard("rutube", "RUTUBE", "Видео и музыка", Modifier.weight(1f), onOpenSource)
         }
         Spacer(Modifier.height(24.dp))
         AppCard(Modifier.fillMaxWidth()) {
@@ -140,8 +142,8 @@ fun HomeScreen(
 }
 
 @Composable
-private fun SourceCard(id: String, title: String, caption: String, modifier: Modifier) {
-    AppCard(modifier) {
+private fun SourceCard(id: String, title: String, caption: String, modifier: Modifier, onOpen: (String) -> Unit) {
+    AppCard(modifier.clickable(onClickLabel = "Открыть $title") { onOpen(id) }) {
         Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.Start) {
             SourceIcon(id, 34.dp)
             Spacer(Modifier.height(8.dp))

@@ -59,11 +59,14 @@ import com.domenota.medialoader.ui.model.AnalysisUiState
 import com.domenota.medialoader.ui.model.toPreviewUi
 import com.domenota.medialoader.ui.model.toUi
 import com.domenota.medialoader.ui.navigation.AppDestination
+import com.domenota.medialoader.ui.navigation.BROWSER_ROUTE
 import com.domenota.medialoader.ui.navigation.PREVIEW_ROUTE
 import com.domenota.medialoader.ui.screens.DownloadsScreen
 import com.domenota.medialoader.ui.screens.HomeScreen
 import com.domenota.medialoader.ui.screens.PreviewScreen
 import com.domenota.medialoader.ui.screens.SettingsScreen
+import com.domenota.medialoader.ui.screens.BrowserSource
+import com.domenota.medialoader.ui.screens.SourceBrowserScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -113,6 +116,9 @@ fun MediaLoaderApp(
         showPicker = false
         navigateTo(AppDestination.Downloads.route)
     }
+    val afterDownload: () -> Unit = {
+        if (currentRoute == BROWSER_ROUTE) showPicker = false else goToDownloads()
+    }
 
     val loginLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         viewModel.onLoginFinished(result.resultCode == Activity.RESULT_OK)
@@ -149,7 +155,7 @@ fun MediaLoaderApp(
     // Android 8–9 need the legacy storage permission for the public Downloads folder.
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
-            viewModel.downloadSelected(pendingNames, goToDownloads)
+            viewModel.downloadSelected(pendingNames, afterDownload)
         } else {
             viewModel.showMessage("Для сохранения в Загрузки на Android 8–9 нужен доступ к хранилищу.")
         }
@@ -162,7 +168,7 @@ fun MediaLoaderApp(
             ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
             PackageManager.PERMISSION_GRANTED
         if (needsPermission) permissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-        else viewModel.downloadSelected(pendingNames, goToDownloads)
+        else viewModel.downloadSelected(pendingNames, afterDownload)
     }
     val requestDownload: () -> Unit = {
         pendingNames = preview.items.filter { it.id in preview.selectedIds }
@@ -240,7 +246,7 @@ fun MediaLoaderApp(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            if (currentRoute != PREVIEW_ROUTE) {
+            if (currentRoute != PREVIEW_ROUTE && currentRoute != BROWSER_ROUTE) {
                 NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                     AppDestination.entries.forEach { destination ->
                         NavigationBarItem(
@@ -290,6 +296,7 @@ fun MediaLoaderApp(
                         showPicker = true
                     },
                     onOpenDownloads = goToDownloads,
+                    onOpenSource = { source -> navController.navigate("browser/$source") },
                     recentDownloads = downloadItems.take(3),
                     onOpenDownload = openDownload,
                     onCancelDownload = viewModel::cancelDownload,
@@ -298,6 +305,20 @@ fun MediaLoaderApp(
                     onRetryDownload = viewModel::retryDownload,
                     onRenameDownload = viewModel::renameDownload,
                 )
+            }
+            composable(BROWSER_ROUTE) { entry ->
+                BrowserSource.fromId(entry.arguments?.getString("source"))?.let { source ->
+                    SourceBrowserScreen(
+                        source = source,
+                        onBack = { navController.popBackStack() },
+                        onDownload = { link ->
+                            pendingUrl = link
+                            lastHandledLink = link
+                            viewModel.analyze(link)
+                            showPicker = true
+                        },
+                    )
+                }
             }
             composable(AppDestination.Downloads.route) {
                 DownloadsScreen(
@@ -364,7 +385,7 @@ fun MediaLoaderApp(
             }
         }
     }
-    if (showPicker && currentRoute == AppDestination.Home.route) {
+    if (showPicker && (currentRoute == AppDestination.Home.route || currentRoute == BROWSER_ROUTE)) {
         ModalBottomSheet(
             onDismissRequest = { showPicker = false },
             sheetState = pickerState,

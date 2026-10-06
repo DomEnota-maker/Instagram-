@@ -17,3 +17,4 @@ enum class AppDestination(
 }
 
 const val PREVIEW_ROUTE = "preview"
+const val BROWSER_ROUTE = "browser/{source}"
