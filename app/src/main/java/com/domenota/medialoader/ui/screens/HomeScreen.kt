@@ -59,14 +59,18 @@ fun HomeScreen(
         .padding(horizontal = 20.dp, vertical = 24.dp)) {
         Text("Загрузчик", style = MaterialTheme.typography.headlineLarge)
         Spacer(Modifier.height(5.dp))
-        Text("Скачивание медиа из Instagram, YouTube и VK",
+        Text("Скачивание медиа из Instagram, YouTube, VK и RUTUBE",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(22.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SourceCard("instagram", "Instagram", "Фото и видео", Modifier.weight(1f))
             SourceCard("youtube", "YouTube", "Видео и музыка", Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SourceCard("vk", "VK", "Фото и видео", Modifier.weight(1f))
+            SourceCard("rutube", "RUTUBE", "Видео и музыка", Modifier.weight(1f))
         }
         Spacer(Modifier.height(24.dp))
         AppCard(Modifier.fillMaxWidth()) {
