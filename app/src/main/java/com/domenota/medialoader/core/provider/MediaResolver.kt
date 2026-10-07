@@ -18,8 +18,18 @@ class DefaultMediaResolver(private val providers: List<MediaProvider>) : MediaRe
             "Поддерживаются ссылки Instagram, YouTube, VK и RUTUBE.",
         )
         val items = provider.resolve(url)
+        // A direct publication-level music asset is preferred over re-extracting audio from every video.
+        val directAudioGroups = items
+            .filter { it.providerId == InstagramProvider.ID && it.type == MediaType.AUDIO }
+            .map { it.sourceGroupId ?: it.id }
+            .toSet()
         // Unknown public pages may still contain audio; an explicit false from Instagram suppresses it.
-        return items + items.filter { it.providerId == InstagramProvider.ID && it.type == MediaType.VIDEO && it.audioAvailable != false }.map(::audioTrackOf)
+        return items + items.filter {
+            it.providerId == InstagramProvider.ID &&
+                it.type == MediaType.VIDEO &&
+                it.audioAvailable != false &&
+                (it.sourceGroupId ?: it.id) !in directAudioGroups
+        }.map(::audioTrackOf)
     }
 
     companion object {
