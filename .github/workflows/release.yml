@@ -30,6 +30,13 @@ jobs:
         run: |
           sha256sum app/build/outputs/apk/release/app-release-unsigned.apk
           split -b 20m -d -a 2 app/build/outputs/apk/release/app-release-unsigned.apk release-part-
+      - name: Export apksigner tool
+        run: cp "$ANDROID_SDK_ROOT/build-tools/35.0.0/lib/apksigner.jar" apksigner.jar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apksigner-tool
+          path: apksigner.jar
+          retention-days: 1
       - uses: actions/upload-artifact@v4
         with:
           name: MediaLoader-release-part-00
