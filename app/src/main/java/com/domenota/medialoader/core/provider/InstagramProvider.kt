@@ -80,14 +80,64 @@ class InstagramProvider(
     companion object {
         const val ID = "instagram"
 
-        /** Builds items from one product node. A carousel is numbered from its first element. */
+        /**
+         * Builds items from one product node. A carousel is numbered from its first element.
+         * Instagram music is a publication-level asset, so it is appended once after the visual media.
+         */
         fun itemsFromProduct(product: JSONObject, code: String): List<MediaItem> {
             val carousel = product.optJSONArray("carousel_media")
-            if (carousel != null && carousel.length() > 0) {
-                return (0 until carousel.length()).mapNotNull(carousel::optJSONObject)
+            val media = if (carousel != null && carousel.length() > 0) {
+                (0 until carousel.length()).mapNotNull(carousel::optJSONObject)
                     .mapIndexedNotNull { index, entry -> mediaItem(entry, "${code}_${index + 1}", code, index + 1) }
+            } else {
+                listOfNotNull(mediaItem(product, code, code, null))
             }
-            return listOfNotNull(mediaItem(product, code, code, null))
+            val music = musicItem(product, code, media.firstOrNull()?.previewUrl)
+            return if (music == null) media else media + music
+        }
+
+        /** Finds the first usable Instagram music asset regardless of the wrapper used by Posts, Reels or Stories. */
+        private fun musicItem(product: JSONObject, code: String, publicationPreview: String?): MediaItem? {
+            val asset = findMusicAsset(product, 0) ?: return null
+            val url = asset.optString("progressive_download_url").takeIf(::safeMediaUrl) ?: return null
+            val artist = StorageNaming.sanitizeStem(asset.optString("display_artist").takeIf { it.isNotBlank() })
+            val title = StorageNaming.sanitizeStem(asset.optString("title").takeIf { it.isNotBlank() })
+            val stem = StorageNaming.sanitizeStem(
+                when {
+                    artist != null && title != null -> "$artist - $title"
+                    title != null -> title
+                    artist != null -> artist
+                    else -> StorageNaming.FALLBACK_STEM
+                },
+            )
+            return MediaItem(
+                id = "${code}_music",
+                providerId = ID,
+                type = MediaType.AUDIO,
+                originalName = StorageNaming.mediaFileName(stem, null, "mp3"),
+                downloadUrl = url,
+                previewUrl = publicationPreview,
+                sourceGroupId = code,
+            )
+        }
+
+        private fun findMusicAsset(node: Any?, depth: Int): JSONObject? {
+            if (depth > 40) return null
+            when (node) {
+                is JSONObject -> {
+                    node.optJSONObject("music_asset_info")?.let { asset ->
+                        if (asset.optString("progressive_download_url").takeIf(::safeMediaUrl) != null) return asset
+                    }
+                    val keys = node.keys()
+                    while (keys.hasNext()) {
+                        findMusicAsset(node.opt(keys.next()), depth + 1)?.let { return it }
+                    }
+                }
+                is JSONArray -> for (index in 0 until node.length()) {
+                    findMusicAsset(node.opt(index), depth + 1)?.let { return it }
+                }
+            }
+            return null
         }
 
         /** Parses /api/v1/media/{id}/info/ (posts, Reels, carousels and Stories share this shape). */
