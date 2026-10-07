@@ -18,7 +18,7 @@ private fun MediaType.kind(): MediaKind = when (this) {
 private fun MediaType.label(): String = when (this) {
     MediaType.PHOTO -> "Фото · JPG"
     MediaType.VIDEO -> "Видео · MP4"
-    MediaType.AUDIO -> "Аудио · M4A"
+    MediaType.AUDIO -> "Аудио · MP3"
 }
 
 fun MediaItem.toPreviewUi(selected: Boolean) = PreviewMediaUi(
@@ -26,7 +26,7 @@ fun MediaItem.toPreviewUi(selected: Boolean) = PreviewMediaUi(
     title = originalName,
     subtitle = qualityLabel?.let { "$it · ${type.label()}" } ?: type.label(),
     sizeLabel = sizeBytes?.let(FileSizeFormatter::format) ?: if (type == MediaType.AUDIO)
-        "Размер после извлечения" else "Размер неизвестен",
+        "Размер после обработки" else "Размер неизвестен",
     kind = type.kind(),
     selected = selected,
     previewUrl = previewUrl,
@@ -63,7 +63,7 @@ fun DownloadEntity.toUi(): DownloadUiItem {
     )
 }
 
-/** Audio tracks are offered next to every video but are never selected by default. */
+/** Optional audio tracks are never selected by default. */
 fun List<MediaItem>.defaultSelectedIds(): Set<String> =
     filter { item ->
         if (item.group != null || item.providerId == "youtube") item.preselected
