@@ -72,7 +72,8 @@ fun PreviewScreen(
     asSheet: Boolean = false,
 ) {
     if (asSheet && state == AnalysisUiState.PREVIEW_READY &&
-        items.isNotEmpty() && items.all { it.kind == MediaKind.IMAGE }) {
+        items.any { it.kind == MediaKind.IMAGE } &&
+        items.none { it.kind == MediaKind.VIDEO }) {
         PhotoSelectionSheet(items, onToggleItem, onToggleAllPhotos, onDownloadSelected,
             errorMessage, busy)
         return
@@ -222,24 +223,35 @@ private fun VideoAudioSelectionSheet(
 
 @Composable
 private fun PhotoSelectionSheet(
-    photos: List<PreviewMediaUi>,
+    items: List<PreviewMediaUi>,
     onToggleItem: (String) -> Unit,
     onToggleAllPhotos: () -> Unit,
     onDownloadSelected: () -> Unit,
     errorMessage: String?,
     busy: Boolean,
 ) {
-    val selected = photos.count { it.selected }
+    val photos = items.filter { it.kind == MediaKind.IMAGE }
+    val audio = items.filter { it.kind == MediaKind.AUDIO }
+    val selected = items.count { it.selected }
+    val selectedPhotos = photos.count { it.selected }
     val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.78f).dp
     Column(Modifier.fillMaxWidth().height(maxHeight).padding(horizontal = 16.dp)) {
         Text("Выбранный материал", style = MaterialTheme.typography.titleLarge)
         Row(Modifier.fillMaxWidth().clickable(onClick = onToggleAllPhotos)
             .padding(vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            SelectionMark(selected == photos.size)
-            Text(if (selected == photos.size) "Все выбрано" else "Выбрать все",
+            SelectionMark(selectedPhotos == photos.size)
+            Text(if (selectedPhotos == photos.size) "Все фото выбраны" else "Выбрать все фото",
                 Modifier.padding(start = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            audio.forEach { item ->
+                Text("Музыка", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                MediaRow(item, onToggle = { onToggleItem(item.id) })
+                Spacer(Modifier.height(10.dp))
+            }
+            if (audio.isNotEmpty() && photos.isNotEmpty()) {
+                HorizontalDivider(Modifier.padding(bottom = 16.dp), color = MaterialTheme.colorScheme.outline)
+            }
             photos.chunked(3).forEach { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     row.forEach { item ->
