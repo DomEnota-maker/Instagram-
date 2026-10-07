@@ -257,6 +257,58 @@ class InstagramProviderTest {
         }
     }
 
+    // ---- direct Instagram music assets -----------------------------------------------------------
+
+    @Test fun photoWithMusicReturnsPhotoAndDirectMusic() {
+        runBlocking {
+            val id = InstagramProvider.mediaId("Ab_12-z")
+            val page = """<script data-sjs>{"item":{"pk":"$id","image_versions2":{"candidates":[{"url":"https://scontent.fbcdn.net/photo.jpg","width":1080}]},"music_metadata":{"music_info":{"music_asset_info":{"title":"Night Drive","display_artist":"Artist","progressive_download_url":"https://video.xx.fbcdn.net/night-drive.m4a"}}}}}</script>"""
+            val items = InstagramProvider { page }.resolve("https://instagram.com/p/Ab_12-z/")
+            assertEquals(listOf(MediaType.PHOTO, MediaType.AUDIO), items.map { it.type })
+            assertEquals("https://video.xx.fbcdn.net/night-drive.m4a", items[1].downloadUrl)
+            assertEquals("Artist - Night Drive.mp3", items[1].originalName)
+            assertEquals("https://scontent.fbcdn.net/photo.jpg", items[1].previewUrl)
+        }
+    }
+
+    @Test fun carouselGetsOnePublicationMusicTrack() {
+        runBlocking {
+            val id = InstagramProvider.mediaId("Ab_12-z")
+            val page = """<script data-sjs>{"item":{"pk":"$id","carousel_media":[{"image_versions2":{"candidates":[{"url":"https://scontent.fbcdn.net/a.jpg","width":1080}]}},{"image_versions2":{"candidates":[{"url":"https://scontent.fbcdn.net/b.jpg","width":1080}]}}],"music_metadata":{"music_info":{"music_asset_info":{"progressive_download_url":"https://video.xx.fbcdn.net/song.m4a"}}}}}</script>"""
+            val items = InstagramProvider { page }.resolve("https://instagram.com/p/Ab_12-z/")
+            assertEquals(listOf(MediaType.PHOTO, MediaType.PHOTO, MediaType.AUDIO), items.map { it.type })
+            assertEquals(1, items.count { it.type == MediaType.AUDIO })
+            assertEquals("https://scontent.fbcdn.net/a.jpg", items.last().previewUrl)
+        }
+    }
+
+    @Test fun storyMusicStickerShapeIsSupported() {
+        val body = """{"items":[{"image_versions2":{"candidates":[{"url":"https://scontent.cdninstagram.com/story.jpg","width":1080}]},"story_music_stickers":[{"music_asset_info":{"title":"Story Song","progressive_download_url":"https://video.xx.fbcdn.net/story.m4a"}}]}]}"""
+        val items = InstagramProvider.parseApiResponse(body, "3456789012345")
+        assertEquals(listOf(MediaType.PHOTO, MediaType.AUDIO), items.map { it.type })
+        assertEquals("Story Song.mp3", items[1].originalName)
+    }
+
+    @Test fun resolverPrefersDirectMusicAndDoesNotDuplicateVideoAudio() {
+        runBlocking {
+            val id = InstagramProvider.mediaId("Ab_12-z")
+            val page = """<script data-sjs>{"item":{"pk":"$id","has_audio":true,"video_versions":[{"url":"https://scontent.fbcdn.net/clip.mp4","width":1080}],"image_versions2":{"candidates":[{"url":"https://scontent.fbcdn.net/cover.jpg","width":1080}]},"clips_metadata":{"music_info":{"music_asset_info":{"progressive_download_url":"https://video.xx.fbcdn.net/music.m4a"}}}}}</script>"""
+            val items = DefaultMediaResolver(listOf(InstagramProvider { page }))
+                .resolve("https://instagram.com/reel/Ab_12-z/")
+            assertEquals(listOf(MediaType.VIDEO, MediaType.AUDIO), items.map { it.type })
+            assertEquals("https://video.xx.fbcdn.net/music.m4a", items[1].downloadUrl)
+        }
+    }
+
+    @Test fun unsafeMusicAssetIsIgnored() {
+        runBlocking {
+            val id = InstagramProvider.mediaId("Ab_12-z")
+            val page = """<script data-sjs>{"item":{"pk":"$id","image_versions2":{"candidates":[{"url":"https://scontent.fbcdn.net/photo.jpg","width":1080}]},"music_metadata":{"music_info":{"music_asset_info":{"progressive_download_url":"https://fbcdn.net.evil.test/song.m4a"}}}}}</script>"""
+            val items = InstagramProvider { page }.resolve("https://instagram.com/p/Ab_12-z/")
+            assertEquals(listOf(MediaType.PHOTO), items.map { it.type })
+        }
+    }
+
     // ---- audio track offered for every video ---------------------------------------------------
 
     @Test fun resolverOffersAudioTrackForEveryVideo() {
