@@ -77,6 +77,16 @@ class MediaRepository private constructor(context: Context) {
                 override fun migrate(db: SupportSQLiteDatabase) {
                     db.execSQL("ALTER TABLE downloads ADD COLUMN formatSelector TEXT")
                 }
+            }, object : Migration(5, 6) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE downloads ADD COLUMN sourceAudioArtist TEXT")
+                    db.execSQL("ALTER TABLE downloads ADD COLUMN sourceAudioTitle TEXT")
+                    db.execSQL("ALTER TABLE downloads ADD COLUMN recognizedArtist TEXT")
+                    db.execSQL("ALTER TABLE downloads ADD COLUMN recognizedTitle TEXT")
+                    db.execSQL("ALTER TABLE downloads ADD COLUMN recognizedAlbum TEXT")
+                    db.execSQL("ALTER TABLE downloads ADD COLUMN recognitionTrackId TEXT")
+                    db.execSQL("ALTER TABLE downloads ADD COLUMN recognitionSource TEXT")
+                }
             }).build().downloadDao(),
     )
     private val resolver: MediaResolver = DefaultMediaResolver(
