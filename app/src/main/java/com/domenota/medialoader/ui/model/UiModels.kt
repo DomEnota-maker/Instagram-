@@ -45,4 +45,6 @@ data class DownloadUiItem(
     val kind: MediaKind = MediaKind.IMAGE,
     val groupId: String? = null,
     val providerId: String? = null,
+    val recognitionLabel: String? = null,
+    val recognized: Boolean = false,
 )
