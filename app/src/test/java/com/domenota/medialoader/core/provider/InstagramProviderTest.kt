@@ -267,6 +267,8 @@ class InstagramProviderTest {
             assertEquals(listOf(MediaType.PHOTO, MediaType.AUDIO), items.map { it.type })
             assertEquals("https://video.xx.fbcdn.net/night-drive.m4a", items[1].downloadUrl)
             assertEquals("Artist - Night Drive.mp3", items[1].originalName)
+            assertEquals("Artist", items[1].audioArtist)
+            assertEquals("Night Drive", items[1].audioTitle)
             assertEquals("https://scontent.fbcdn.net/photo.jpg", items[1].previewUrl)
         }
     }
