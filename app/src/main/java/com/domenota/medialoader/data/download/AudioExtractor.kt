@@ -37,12 +37,14 @@ class AudioExtractor(
         videoUrl: String,
         fileName: String,
         onProgress: suspend (bytesDownloaded: Long, totalBytes: Long?) -> Unit = { _, _ -> },
+        beforePublish: suspend (audioFile: File) -> Unit = {},
     ): Pair<Uri, Long> = withContext(Dispatchers.IO) {
         val video = File.createTempFile("src", ".mp4", context.cacheDir)
         val audio = File.createTempFile("aud", ".mp3", context.cacheDir)
         try {
             download(videoUrl, video, onProgress)
             extract(video, audio)
+            beforePublish(audio)
             storage.publish(audio, fileName, "audio/mpeg") to audio.length()
         } finally {
             video.delete()
