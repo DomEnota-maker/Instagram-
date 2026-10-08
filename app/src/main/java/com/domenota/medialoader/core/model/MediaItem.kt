@@ -13,6 +13,7 @@ data class MediaItem(
     /** Optional source-provided music metadata. Filled before acoustic recognition when available. */
     val audioArtist: String? = null,
     val audioTitle: String? = null,
+    val audioArtworkUrl: String? = null,
     /** Stable publication identifier. Separate queue submissions remain distinct batches. */
     val sourceGroupId: String? = null,
     val position: Int? = null,

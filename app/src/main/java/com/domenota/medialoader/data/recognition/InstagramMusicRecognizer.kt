@@ -27,6 +27,7 @@ class InstagramMusicRecognizer(
         return MusicRecognitionResult(
             title = title,
             artist = artist,
+            artworkUrl = item.audioArtworkUrl,
             source = RecognitionSource.SOURCE_METADATA,
         )
     }

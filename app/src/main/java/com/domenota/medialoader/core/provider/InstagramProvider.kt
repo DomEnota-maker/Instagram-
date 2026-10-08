@@ -102,6 +102,10 @@ class InstagramProvider(
             val url = asset.optString("progressive_download_url").takeIf(::safeMediaUrl) ?: return null
             val rawArtist = asset.optString("display_artist").trim().takeIf { it.isNotBlank() }
             val rawTitle = asset.optString("title").trim().takeIf { it.isNotBlank() }
+            val artwork = (
+                asset.optString("cover_artwork_uri").takeIf(::safeMediaUrl)
+                    ?: asset.optString("cover_artwork_thumbnail_uri").takeIf(::safeMediaUrl)
+                )
             val artist = StorageNaming.sanitizeStem(rawArtist)
             val title = StorageNaming.sanitizeStem(rawTitle)
             val stem = StorageNaming.sanitizeStem(
@@ -121,6 +125,7 @@ class InstagramProvider(
                 previewUrl = publicationPreview,
                 audioArtist = rawArtist,
                 audioTitle = rawTitle,
+                audioArtworkUrl = artwork,
                 sourceGroupId = code,
             )
         }

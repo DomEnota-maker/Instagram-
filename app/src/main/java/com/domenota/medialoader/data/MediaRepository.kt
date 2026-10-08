@@ -44,6 +44,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -85,6 +89,7 @@ class MediaRepository private constructor(context: Context) {
                 override fun migrate(db: SupportSQLiteDatabase) {
                     db.execSQL("ALTER TABLE downloads ADD COLUMN sourceAudioArtist TEXT")
                     db.execSQL("ALTER TABLE downloads ADD COLUMN sourceAudioTitle TEXT")
+                    db.execSQL("ALTER TABLE downloads ADD COLUMN sourceAudioArtworkUrl TEXT")
                     db.execSQL("ALTER TABLE downloads ADD COLUMN recognizedArtist TEXT")
                     db.execSQL("ALTER TABLE downloads ADD COLUMN recognizedTitle TEXT")
                     db.execSQL("ALTER TABLE downloads ADD COLUMN recognizedAlbum TEXT")
@@ -107,6 +112,8 @@ class MediaRepository private constructor(context: Context) {
     private val instagramMusicRecognizer = InstagramMusicRecognizer()
     private val recognitionAudioPreprocessor = RecognitionAudioPreprocessor(appContext)
     private val recognitionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val _recognitionActive = MutableStateFlow(0)
+    val recognitionActive: StateFlow<Int> = _recognitionActive.asStateFlow()
     private val musicPostProcessor = MusicPostProcessor(
         storage = storage,
         history = history,
@@ -128,8 +135,18 @@ class MediaRepository private constructor(context: Context) {
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
         onBatchChanged = { id, items -> notifier.update(id, items) },
         onCompleted = { task, _ ->
-            if (task.item.type == MediaType.AUDIO) {
-                recognitionScope.launch { musicPostProcessor.processDownloaded(task.id, task.item) }
+            if (task.item.type == MediaType.AUDIO &&
+                task.item.providerId == InstagramProvider.ID &&
+                recognitionSettings.mode == MusicRecognitionMode.AUTO
+            ) {
+                beginRecognition()
+                recognitionScope.launch {
+                    try {
+                        musicPostProcessor.processDownloaded(task.id, task.item)
+                    } finally {
+                        endRecognition()
+                    }
+                }
             }
         },
     )
@@ -182,7 +199,25 @@ class MediaRepository private constructor(context: Context) {
     fun setMusicRecognitionMode(mode: MusicRecognitionMode) { recognitionSettings.mode = mode }
     val renameRecognizedTracks: Boolean get() = recognitionSettings.renameRecognized
     fun setRenameRecognizedTracks(enabled: Boolean) { recognitionSettings.renameRecognized = enabled }
-    suspend fun recognizeAudio(id: String) = musicPostProcessor.processExisting(id)
+    suspend fun recognizeAudio(id: String) =
+        if (recognitionSettings.mode == MusicRecognitionMode.OFF) null
+        else {
+            beginRecognition()
+            try {
+                musicPostProcessor.processExisting(id)
+            } finally {
+                endRecognition()
+            }
+        }
+
+    private fun beginRecognition() {
+        _recognitionActive.update { it + 1 }
+        ActiveDownloadService.start(appContext)
+    }
+
+    private fun endRecognition() {
+        _recognitionActive.update { (it - 1).coerceAtLeast(0) }
+    }
 
     fun isLoggedIn(): Boolean = sessions.isLoggedIn()
     suspend fun updateYtDlp(): String = youtubeDl.update()
