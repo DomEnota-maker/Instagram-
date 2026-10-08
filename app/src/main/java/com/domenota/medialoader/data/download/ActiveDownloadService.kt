@@ -22,6 +22,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 /** Keeps the process eligible to finish transfers after the activity goes into the background. */
@@ -39,17 +40,23 @@ class ActiveDownloadService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val notice = notification(0)
+        val notice = notification(0, 0)
         if (Build.VERSION.SDK_INT >= 29) startForeground(ID, notice,
             ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         else startForeground(ID, notice)
         if (observer == null) observer = scope.launch {
-            MediaRepository.get(applicationContext).downloads.collect { rows ->
-                val active = rows.count { it.state == DownloadState.QUEUED || it.state == DownloadState.RUNNING }
+            val repository = MediaRepository.get(applicationContext)
+            combine(repository.downloads, repository.recognitionActive) { rows, recognition ->
+                rows.count { it.state == DownloadState.QUEUED || it.state == DownloadState.RUNNING } to recognition
+            }.collect { (downloads, recognition) ->
+                val active = downloads + recognition
                 if (active > 0) hasSeenWork = true
                 if (hasSeenWork && active == 0) stopSelf()
                 else runCatching {
-                    getSystemService(NotificationManager::class.java).notify(ID, notification(active))
+                    getSystemService(NotificationManager::class.java).notify(
+                        ID,
+                        notification(active, recognition),
+                    )
                 }
             }
         }
@@ -70,13 +77,19 @@ class ActiveDownloadService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun notification(active: Int): Notification {
+    private fun notification(active: Int, recognition: Int): Notification {
         val intent = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         return NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle("Загрузчик")
-            .setContentText(if (active == 0) "Подготовка загрузки" else "Загружается файлов: $active")
+            .setContentText(
+                when {
+                    recognition > 0 -> "Распознаётся музыка"
+                    active == 0 -> "Подготовка загрузки"
+                    else -> "Загружается файлов: $active"
+                },
+            )
             .setOngoing(true).setOnlyAlertOnce(true).setContentIntent(intent).build()
     }
 
