@@ -28,6 +28,8 @@ import com.domenota.medialoader.data.download.mediaHeaders
 import com.domenota.medialoader.data.download.ActiveDownloadService
 import com.domenota.medialoader.data.download.VkDownloadEngine
 import com.domenota.medialoader.data.download.YouTubeDownloadEngine
+import com.domenota.medialoader.data.recognition.InstagramMusicRecognizer
+import com.domenota.medialoader.data.recognition.RecognitionAudioPreprocessor
 import com.domenota.medialoader.data.rutube.RutubeYtDlpRuntime
 import com.domenota.medialoader.data.vk.VkYtDlpRuntime
 import com.domenota.medialoader.data.youtube.YoutubeDlAndroid
@@ -86,11 +88,17 @@ class MediaRepository private constructor(context: Context) {
         ),
     )
     private val notifier = DownloadNotifier(appContext)
+    private val instagramMusicRecognizer = InstagramMusicRecognizer()
+    private val recognitionAudioPreprocessor = RecognitionAudioPreprocessor(appContext)
     private val queue = DownloadQueue(
         history = history,
         engine = RoutingDownloadEngine(
             media = HttpDownloadEngine(appContext, storage, sessions::cookies),
-            audio = AudioDownloadEngine(AudioExtractor(appContext, storage, sessions::cookies)),
+            audio = AudioDownloadEngine(
+                extractor = AudioExtractor(appContext, storage, sessions::cookies),
+                instagramRecognizer = instagramMusicRecognizer,
+                recognitionPreprocessor = recognitionAudioPreprocessor,
+            ),
             youtube = YouTubeDownloadEngine(appContext, storage, youtubeDl),
             vk = VkDownloadEngine(appContext, storage, vkDl),
             rutube = RutubeDownloadEngine(appContext, storage, rutubeDl),
