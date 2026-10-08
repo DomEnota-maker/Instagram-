@@ -22,6 +22,6 @@ class AudioDownloadEngine(private val extractor: AudioExtractor) : DownloadEngin
     } catch (error: LinkageError) {
         throw DownloadFailure("Не удалось запустить обработку MP3. Обновите приложение.", error)
     } catch (error: Exception) {
-        throw DownloadFailure("Не удалось извлечь аудио. Повторите анализ ссылки.", error)
+        throw DownloadFailure("Не удалось извлечь аудио. Повторите попытку.", error)
     }
 }
