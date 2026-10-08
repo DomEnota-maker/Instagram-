@@ -14,7 +14,7 @@ import com.domenota.medialoader.core.recognition.RecognitionSource
  *
  * A looped result is accepted only when both differently-phased loops resolve to the same track id.
  */
-class ShazamRecognitionProvider(
+internal class ShazamRecognitionProvider(
     private val api: ShazamApi = ShazamClient(),
     private val signatureFactory: (ShortArray) -> ShazamSignatureGenerator.Signature =
         ShazamSignatureGenerator::generate,
