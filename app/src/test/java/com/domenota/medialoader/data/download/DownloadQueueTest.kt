@@ -67,9 +67,15 @@ class DownloadQueueTest {
         }
     }
 
-    private fun item(name: String, type: MediaType = MediaType.PHOTO, size: Long? = null) = MediaItem(
+    private fun item(
+        name: String,
+        type: MediaType = MediaType.PHOTO,
+        size: Long? = null,
+        sourcePageUrl: String? = null,
+    ) = MediaItem(
         id = name, providerId = "instagram", type = type, originalName = name,
         downloadUrl = "https://scontent.fbcdn.net/$name", sizeBytes = size,
+        sourcePageUrl = sourcePageUrl,
     )
 
     private suspend fun FakeDao.waitUntil(condition: (List<DownloadEntity>) -> Boolean) {
@@ -199,6 +205,19 @@ class DownloadQueueTest {
                 listOf("photo_1.jpg", "photo_2.jpg", "photo_3.jpg"),
                 dao.all().map { it.originalName },
             )
+        }
+    }
+
+    @Test fun sourcePageUrlIsStoredSeparatelyFromDirectMediaUrl() {
+        withQueue(FakeEngine()) { dao, queue ->
+            val pageUrl = "https://www.instagram.com/p/example/"
+            val saved = queue.enqueue(listOf(item("photo.jpg", sourcePageUrl = pageUrl))).single()
+
+            assertEquals("https://scontent.fbcdn.net/photo.jpg", saved.sourceUrl)
+            assertEquals(pageUrl, saved.sourcePageUrl)
+
+            dao.waitUntil { rows -> rows.any { it.id == saved.id && it.state == DownloadState.COMPLETED } }
+            assertEquals(pageUrl, dao.byId(saved.id)?.sourcePageUrl)
         }
     }
 

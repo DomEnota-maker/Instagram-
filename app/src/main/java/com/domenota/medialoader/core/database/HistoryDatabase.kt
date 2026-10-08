@@ -29,6 +29,7 @@ data class DownloadEntity(
     val bytesDownloaded: Long = 0,
     val errorMessage: String? = null,
     val sourceUrl: String? = null,
+    val sourcePageUrl: String? = null,
     @ColumnInfo(defaultValue = "0") val hidden: Boolean = false,
     val previewUrl: String? = null,
     val groupId: String? = null,
@@ -109,7 +110,7 @@ interface SettingsDao {
     suspend fun upsert(item: SettingsEntity)
 }
 
-@Database(entities = [DownloadEntity::class, SettingsEntity::class], version = 6, exportSchema = false)
+@Database(entities = [DownloadEntity::class, SettingsEntity::class], version = 7, exportSchema = false)
 @TypeConverters(DatabaseConverters::class)
 abstract class HistoryDatabase : RoomDatabase() {
     abstract fun downloadDao(): DownloadDao

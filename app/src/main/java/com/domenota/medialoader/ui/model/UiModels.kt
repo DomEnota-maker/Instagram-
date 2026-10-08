@@ -47,4 +47,5 @@ data class DownloadUiItem(
     val providerId: String? = null,
     val recognitionLabel: String? = null,
     val recognized: Boolean = false,
+    val sourcePageUrl: String? = null,
 )

@@ -21,6 +21,8 @@ data class MediaItem(
     val qualityLabel: String? = null,
     val formatSelector: String? = null,
     val group: String? = null,
+    /** Original page/post URL entered by the user. Kept separate from the direct media/CDN URL. */
+    val sourcePageUrl: String? = null,
     val preselected: Boolean = false,
 )
 
