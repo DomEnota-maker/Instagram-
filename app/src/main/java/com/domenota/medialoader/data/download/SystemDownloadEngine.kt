@@ -49,7 +49,7 @@ class SystemDownloadEngine(
                     DownloadManager.STATUS_FAILED -> throw DownloadFailure(
                         if (snapshot.reason == DownloadManager.ERROR_INSUFFICIENT_SPACE)
                             "Недостаточно места на устройстве. Освободите память и повторите."
-                        else "Не удалось скачать файл. Проверьте соединение и повторите анализ ссылки.",
+                        else "Не удалось скачать файл. Проверьте соединение и повторите попытку.",
                     )
                 }
                 onProgress(snapshot.downloaded, snapshot.total.takeIf { it > 0 })
