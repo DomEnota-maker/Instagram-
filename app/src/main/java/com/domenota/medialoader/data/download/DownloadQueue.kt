@@ -96,6 +96,7 @@ class DownloadQueue(
                 // Stable tie-breaker for a batch: selection order must survive identical wall-clock ticks.
                 createdAtEpochMillis = batchCreatedAt - index,
                 sourceUrl = item.downloadUrl,
+                sourcePageUrl = item.sourcePageUrl,
                 previewUrl = item.previewUrl,
                 groupId = groupId,
                 formatSelector = item.formatSelector,
@@ -141,7 +142,8 @@ class DownloadQueue(
             queued.mediaType, queued.originalName, url, previewUrl = queued.previewUrl,
             sizeBytes = queued.sizeBytes, formatSelector = queued.formatSelector,
             audioArtist = queued.sourceAudioArtist, audioTitle = queued.sourceAudioTitle,
-            audioArtworkUrl = queued.sourceAudioArtworkUrl), name))
+            audioArtworkUrl = queued.sourceAudioArtworkUrl,
+            sourcePageUrl = queued.sourcePageUrl), name))
         AppLog.i("Download", "Retry queued · id=${queued.id} · provider=${queued.providerId} · name=${queued.originalName}")
         refreshBatch(queued)
     }
