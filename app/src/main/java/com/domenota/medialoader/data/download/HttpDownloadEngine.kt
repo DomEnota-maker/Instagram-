@@ -37,7 +37,7 @@ class HttpDownloadEngine(
             throw error
         } catch (error: IOException) {
             if (BuildConfig.DEBUG) Log.w("MediaLoaderDownload", "Transfer failed: ${error.javaClass.simpleName}")
-            throw DownloadFailure("Нет соединения или файл недоступен. Повторите анализ ссылки.", error)
+            throw DownloadFailure("Не удалось сохранить файл. Повторите попытку.", error)
         } finally {
             temporary.delete()
         }
@@ -61,16 +61,16 @@ class HttpDownloadEngine(
                 if (BuildConfig.DEBUG) Log.d("MediaLoaderDownload", "GET ${current.host} HTTP $status")
                 if (status in 300..399) {
                     val location = connection.getHeaderField("Location")
-                        ?: throw DownloadFailure("Файл недоступен. Повторите анализ ссылки.")
+                        ?: throw DownloadFailure("Файл недоступен. Повторите проверку ссылки.")
                     val next = URL(current, location)
                     if (!InstagramProvider.safeMediaUrl(next.toString())) throw DownloadFailure("Медиа недоступно.")
                     current = next
                     return@repeat
                 }
                 if (status == 401 || status == 403) throw DownloadFailure(
-                    "Доступ к файлу закрыт или ссылка устарела. Повторите анализ ссылки.",
+                    "Доступ к файлу закрыт или ссылка устарела. Повторите проверку ссылки.",
                 )
-                if (status !in 200..299) throw DownloadFailure("Файл недоступен. Повторите анализ ссылки.")
+                if (status !in 200..299) throw DownloadFailure("Файл недоступен. Повторите проверку ссылки.")
                 val declared = connection.contentLengthLong.takeIf { it > 0 }
                 if (declared != null && declared + 16L * 1024 * 1024 > context.cacheDir.usableSpace) {
                     throw DownloadFailure("Недостаточно места на устройстве.")
@@ -93,13 +93,13 @@ class HttpDownloadEngine(
                     }
                 }
                 if (total == 0L || declared != null && total != declared) {
-                    throw DownloadFailure("Загрузка прервалась. Повторите анализ ссылки.")
+                    throw DownloadFailure("Загрузка прервалась. Повторите проверку ссылки.")
                 }
                 return total
             } finally {
                 connection.disconnect()
             }
         }
-        throw DownloadFailure("Слишком много перенаправлений. Повторите анализ ссылки.")
+        throw DownloadFailure("Слишком много перенаправлений. Повторите проверку ссылки.")
     }
 }
