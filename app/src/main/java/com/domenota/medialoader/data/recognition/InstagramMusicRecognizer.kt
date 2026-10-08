@@ -8,14 +8,14 @@ import com.domenota.medialoader.core.recognition.MusicRecognitionResult
 import com.domenota.medialoader.core.recognition.RecognitionSource
 
 /**
- * Instagram-first policy:
- * source artist/title wins; PCM decoding and acoustic recognition are lazy fallbacks.
+ * Music recognition policy with Instagram metadata as the preferred source.
+ * Other providers use acoustic recognition directly.
  */
 class InstagramMusicRecognizer(
     private val acousticProvider: MusicRecognitionProvider = ShazamRecognitionProvider(),
 ) {
     fun requiresPcm(item: MediaItem): Boolean =
-        isInstagramAudio(item) && sourceMetadata(item) == null
+        item.type == MediaType.AUDIO && sourceMetadata(item) == null
 
     fun sourceMetadata(item: MediaItem): MusicRecognitionResult? {
         if (!isInstagramAudio(item)) return null
@@ -35,7 +35,7 @@ class InstagramMusicRecognizer(
         item: MediaItem,
         pcmLoader: suspend () -> ShortArray,
     ): MusicRecognitionResult? {
-        if (!isInstagramAudio(item)) return null
+        if (item.type != MediaType.AUDIO) return null
         sourceMetadata(item)?.let { return it }
         return acousticProvider.recognize(pcmLoader())
     }
