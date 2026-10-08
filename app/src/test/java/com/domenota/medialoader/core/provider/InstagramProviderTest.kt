@@ -262,13 +262,14 @@ class InstagramProviderTest {
     @Test fun photoWithMusicReturnsPhotoAndDirectMusic() {
         runBlocking {
             val id = InstagramProvider.mediaId("Ab_12-z")
-            val page = """<script data-sjs>{"item":{"pk":"$id","image_versions2":{"candidates":[{"url":"https://scontent.fbcdn.net/photo.jpg","width":1080}]},"music_metadata":{"music_info":{"music_asset_info":{"title":"Night Drive","display_artist":"Artist","progressive_download_url":"https://video.xx.fbcdn.net/night-drive.m4a"}}}}}</script>"""
+            val page = """<script data-sjs>{"item":{"pk":"$id","image_versions2":{"candidates":[{"url":"https://scontent.fbcdn.net/photo.jpg","width":1080}]},"music_metadata":{"music_info":{"music_asset_info":{"title":"Night Drive","display_artist":"Artist","cover_artwork_uri":"https://scontent.cdninstagram.com/music-cover.jpg","progressive_download_url":"https://video.xx.fbcdn.net/night-drive.m4a"}}}}}</script>"""
             val items = InstagramProvider { page }.resolve("https://instagram.com/p/Ab_12-z/")
             assertEquals(listOf(MediaType.PHOTO, MediaType.AUDIO), items.map { it.type })
             assertEquals("https://video.xx.fbcdn.net/night-drive.m4a", items[1].downloadUrl)
             assertEquals("Artist - Night Drive.mp3", items[1].originalName)
             assertEquals("Artist", items[1].audioArtist)
             assertEquals("Night Drive", items[1].audioTitle)
+            assertEquals("https://scontent.cdninstagram.com/music-cover.jpg", items[1].audioArtworkUrl)
             assertEquals("https://scontent.fbcdn.net/photo.jpg", items[1].previewUrl)
         }
     }
