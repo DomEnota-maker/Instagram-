@@ -56,6 +56,8 @@ fun HomeScreen(
     onHideDownload: (String) -> Unit = {},
     onRetryDownload: (String) -> Unit = {},
     onRenameDownload: (String, String) -> Unit = { _, _ -> },
+    recognitionEnabled: Boolean = false,
+    onRecognizeDownload: (String) -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
         .padding(horizontal = 20.dp, vertical = 24.dp)) {
@@ -134,7 +136,9 @@ fun HomeScreen(
                 DownloadRow(item = item, onOpen = { onOpenDownload(item.id) },
                     onCancel = { onCancelDownload(item.id) }, onShare = { onShareDownload(item.id) },
                     onHide = { onHideDownload(item.id) }, onRetry = { onRetryDownload(item.id) },
-                    onRename = { onRenameDownload(item.id, it) })
+                    onRename = { onRenameDownload(item.id, it) },
+                    recognitionEnabled = recognitionEnabled,
+                    onRecognize = { onRecognizeDownload(item.id) })
                 Spacer(Modifier.height(8.dp))
             }
         }
