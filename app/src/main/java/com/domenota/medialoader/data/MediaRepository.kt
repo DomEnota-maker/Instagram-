@@ -90,6 +90,7 @@ class MediaRepository private constructor(context: Context) {
     private val notifier = DownloadNotifier(appContext)
     private val instagramMusicRecognizer = InstagramMusicRecognizer()
     private val recognitionAudioPreprocessor = RecognitionAudioPreprocessor(appContext)
+    private val recognitionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val queue = DownloadQueue(
         history = history,
         engine = RoutingDownloadEngine(
@@ -98,6 +99,7 @@ class MediaRepository private constructor(context: Context) {
                 extractor = AudioExtractor(appContext, storage, sessions::cookies),
                 instagramRecognizer = instagramMusicRecognizer,
                 recognitionPreprocessor = recognitionAudioPreprocessor,
+                recognitionScope = recognitionScope,
             ),
             youtube = YouTubeDownloadEngine(appContext, storage, youtubeDl),
             vk = VkDownloadEngine(appContext, storage, vkDl),
