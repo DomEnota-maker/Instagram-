@@ -5,6 +5,7 @@ import com.domenota.medialoader.core.logging.AppLog
 import com.domenota.medialoader.core.model.DownloadState
 import com.domenota.medialoader.core.model.MediaItem
 import com.domenota.medialoader.core.model.MediaType
+import com.domenota.medialoader.core.provider.InstagramProvider
 import com.domenota.medialoader.core.recognition.MusicRecognitionMode
 import com.domenota.medialoader.core.recognition.MusicRecognitionResult
 import com.domenota.medialoader.core.storage.StorageNaming
@@ -26,6 +27,7 @@ class MusicPostProcessor(
         item: MediaItem,
     ): MusicRecognitionResult? {
         if (settings.mode != MusicRecognitionMode.AUTO) return null
+        if (item.providerId != InstagramProvider.ID) return null
         return process(id, item)
     }
 
@@ -107,6 +109,7 @@ class MusicPostProcessor(
                         recognizedArtist = result.artist,
                         recognizedTitle = result.title,
                         recognizedAlbum = result.album,
+                        recognitionTrackId = result.trackId,
                         recognitionSource = result.source.name,
                         recognitionArtworkUrl = result.artworkUrl,
                     ),
