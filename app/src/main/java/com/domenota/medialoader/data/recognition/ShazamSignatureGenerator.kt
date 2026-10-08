@@ -166,9 +166,12 @@ internal object ShazamSignatureGenerator {
         val bandContents = ByteArrayOutputStream()
 
         for (band in Band.entries) {
+            val bandPeaks = state.peaks.getValue(band)
+            if (bandPeaks.isEmpty()) continue
+
             val peakBytes = ByteArrayOutputStream()
             var lastPass = 0
-            for (peak in state.peaks.getValue(band)) {
+            for (peak in bandPeaks) {
                 val delta = peak.fftPass - lastPass
                 if (delta >= 255) {
                     peakBytes.write(0xff)
