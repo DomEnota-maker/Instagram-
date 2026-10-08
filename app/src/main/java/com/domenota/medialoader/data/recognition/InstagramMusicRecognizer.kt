@@ -14,22 +14,32 @@ import com.domenota.medialoader.core.recognition.RecognitionSource
 class InstagramMusicRecognizer(
     private val acousticProvider: MusicRecognitionProvider = ShazamRecognitionProvider(),
 ) {
+    fun requiresPcm(item: MediaItem): Boolean =
+        isInstagramAudio(item) && sourceMetadata(item) == null
+
+    fun sourceMetadata(item: MediaItem): MusicRecognitionResult? {
+        if (!isInstagramAudio(item)) return null
+
+        val artist = item.audioArtist?.trim()?.takeIf { it.isNotBlank() }
+        val title = item.audioTitle?.trim()?.takeIf { it.isNotBlank() }
+        if (artist == null || title == null) return null
+
+        return MusicRecognitionResult(
+            title = title,
+            artist = artist,
+            source = RecognitionSource.SOURCE_METADATA,
+        )
+    }
+
     suspend fun recognize(
         item: MediaItem,
         pcmLoader: suspend () -> ShortArray,
     ): MusicRecognitionResult? {
-        if (item.providerId != InstagramProvider.ID || item.type != MediaType.AUDIO) return null
-
-        val artist = item.audioArtist?.trim()?.takeIf { it.isNotBlank() }
-        val title = item.audioTitle?.trim()?.takeIf { it.isNotBlank() }
-        if (artist != null && title != null) {
-            return MusicRecognitionResult(
-                title = title,
-                artist = artist,
-                source = RecognitionSource.SOURCE_METADATA,
-            )
-        }
-
+        if (!isInstagramAudio(item)) return null
+        sourceMetadata(item)?.let { return it }
         return acousticProvider.recognize(pcmLoader())
     }
+
+    private fun isInstagramAudio(item: MediaItem): Boolean =
+        item.providerId == InstagramProvider.ID && item.type == MediaType.AUDIO
 }
