@@ -88,7 +88,7 @@ fun HomeScreen(
                 Spacer(Modifier.height(16.dp))
                 OutlinedTextField(value = url, onValueChange = onUrlChange,
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Вставь ссылку") },
+                    placeholder = { Text("Вставьте ссылку") },
                     trailingIcon = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (url.isNotEmpty()) IconButton(onClick = { onUrlChange("") }) {
@@ -109,7 +109,7 @@ fun HomeScreen(
                 GradientActionButton("Поиск", onClick = onCheckClick,
                     enabled = url.isNotBlank(), leadingIcon = Icons.Rounded.Search)
                 Spacer(Modifier.height(13.dp))
-                Text("Вставь ссылку и выбери, что скачать",
+                Text("Вставьте ссылку и выберите, что скачать",
                     modifier = Modifier.align(Alignment.CenterHorizontally),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
