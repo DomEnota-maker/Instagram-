@@ -22,7 +22,7 @@ class InstagramMusicRecognizer(
 
         val artist = item.audioArtist?.trim()?.takeIf { it.isNotBlank() }
         val title = item.audioTitle?.trim()?.takeIf { it.isNotBlank() }
-        if (artist == null || title == null) return null
+        if (artist == null || title == null || isGenericInstagramTitle(title)) return null
 
         return MusicRecognitionResult(
             title = title,
@@ -42,4 +42,25 @@ class InstagramMusicRecognizer(
 
     private fun isInstagramAudio(item: MediaItem): Boolean =
         item.providerId == InstagramProvider.ID && item.type == MediaType.AUDIO
+
+    private fun isGenericInstagramTitle(title: String): Boolean {
+        val normalized = title.lowercase()
+            .replace('_', ' ')
+            .replace('-', ' ')
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        return normalized in GENERIC_TITLES
+    }
+
+    private companion object {
+        val GENERIC_TITLES = setOf(
+            "original audio",
+            "original sound",
+            "original music",
+            "оригинальное аудио",
+            "оригинальный звук",
+            "оригинальная аудиодорожка",
+            "оригинальная музыка",
+        )
+    }
 }
