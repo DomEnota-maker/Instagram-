@@ -10,11 +10,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class InstagramMusicRecognizerTest {
-    @Test fun completeInstagramMetadataSkipsAcousticRecognition() = runBlocking {
-        var calls = 0
+    @Test fun completeInstagramMetadataSkipsPcmAndAcousticRecognition() = runBlocking {
+        var pcmLoads = 0
+        var acousticCalls = 0
         val acoustic = object : MusicRecognitionProvider {
             override suspend fun recognize(pcm16Mono16k: ShortArray): MusicRecognitionResult? {
-                calls++
+                acousticCalls++
                 return null
             }
         }
@@ -29,19 +30,24 @@ class InstagramMusicRecognizerTest {
             audioTitle = "Song",
         )
 
-        val result = recognizer.recognize(item, ShortArray(0))
+        val result = recognizer.recognize(item) {
+            pcmLoads++
+            ShortArray(0)
+        }
 
         assertEquals("Artist", result?.artist)
         assertEquals("Song", result?.title)
         assertEquals(RecognitionSource.SOURCE_METADATA, result?.source)
-        assertEquals(0, calls)
+        assertEquals(0, pcmLoads)
+        assertEquals(0, acousticCalls)
     }
 
-    @Test fun incompleteInstagramMetadataFallsBackToAcousticRecognition() = runBlocking {
-        var calls = 0
+    @Test fun incompleteInstagramMetadataLoadsPcmAndFallsBackToAcousticRecognition() = runBlocking {
+        var pcmLoads = 0
+        var acousticCalls = 0
         val acoustic = object : MusicRecognitionProvider {
             override suspend fun recognize(pcm16Mono16k: ShortArray): MusicRecognitionResult? {
-                calls++
+                acousticCalls++
                 return MusicRecognitionResult(
                     trackId = "55",
                     title = "Found Song",
@@ -60,9 +66,13 @@ class InstagramMusicRecognizerTest {
             audioArtist = "Artist only",
         )
 
-        val result = recognizer.recognize(item, ShortArray(64_000))
+        val result = recognizer.recognize(item) {
+            pcmLoads++
+            ShortArray(64_000)
+        }
 
         assertEquals("55", result?.trackId)
-        assertEquals(1, calls)
+        assertEquals(1, pcmLoads)
+        assertEquals(1, acousticCalls)
     }
 }
