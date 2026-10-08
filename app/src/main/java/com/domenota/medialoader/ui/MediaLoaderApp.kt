@@ -54,6 +54,7 @@ import com.domenota.medialoader.core.provider.InstagramLinkParser
 import com.domenota.medialoader.core.provider.RutubeLinkParser
 import com.domenota.medialoader.core.provider.VkLinkParser
 import com.domenota.medialoader.core.provider.YouTubeLinkParser
+import com.domenota.medialoader.core.recognition.MusicRecognitionMode
 import com.domenota.medialoader.core.storage.StorageNaming
 import com.domenota.medialoader.ui.model.AnalysisUiState
 import com.domenota.medialoader.ui.model.toPreviewUi
@@ -103,6 +104,8 @@ fun MediaLoaderApp(
     val hiddenCount by viewModel.hiddenCount.collectAsStateWithLifecycle()
     val hiddenItems by viewModel.hiddenItems.collectAsStateWithLifecycle()
     val downloadFolder by viewModel.downloadFolder.collectAsStateWithLifecycle()
+    val musicRecognitionMode by viewModel.musicRecognitionMode.collectAsStateWithLifecycle()
+    val renameRecognizedTracks by viewModel.renameRecognizedTracks.collectAsStateWithLifecycle()
     val downloadItems = remember(downloads) { downloads.map { it.toUi() } }
 
     fun navigateTo(route: String) {
@@ -307,6 +310,8 @@ fun MediaLoaderApp(
                     onHideDownload = viewModel::hideDownload,
                     onRetryDownload = viewModel::retryDownload,
                     onRenameDownload = viewModel::renameDownload,
+                    recognitionEnabled = musicRecognitionMode != MusicRecognitionMode.OFF,
+                    onRecognizeDownload = viewModel::recognizeDownload,
                 )
             }
             composable(BROWSER_ROUTE) { entry ->
@@ -332,6 +337,8 @@ fun MediaLoaderApp(
                     onHideDownload = viewModel::hideDownload,
                     onRetryDownload = viewModel::retryDownload,
                     onRenameDownload = viewModel::renameDownload,
+                    recognitionEnabled = musicRecognitionMode != MusicRecognitionMode.OFF,
+                    onRecognizeDownload = viewModel::recognizeDownload,
                 )
             }
             composable(AppDestination.Settings.route) {
@@ -366,6 +373,10 @@ fun MediaLoaderApp(
                     hasYouTubeCookies = youtubeCookies,
                     onImportYouTubeCookies = viewModel::importYouTubeCookies,
                     onClearYouTubeCookies = viewModel::clearYouTubeCookies,
+                    musicRecognitionMode = musicRecognitionMode,
+                    renameRecognizedTracks = renameRecognizedTracks,
+                    onMusicRecognitionModeChange = viewModel::setMusicRecognitionMode,
+                    onRenameRecognizedTracksChange = viewModel::setRenameRecognizedTracks,
                 )
             }
             composable(PREVIEW_ROUTE) {
