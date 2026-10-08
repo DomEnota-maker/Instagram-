@@ -33,6 +33,13 @@ data class DownloadEntity(
     val previewUrl: String? = null,
     val groupId: String? = null,
     val formatSelector: String? = null,
+    val sourceAudioArtist: String? = null,
+    val sourceAudioTitle: String? = null,
+    val recognizedArtist: String? = null,
+    val recognizedTitle: String? = null,
+    val recognizedAlbum: String? = null,
+    val recognitionSource: String? = null,
+    val recognitionArtworkUrl: String? = null,
 )
 
 @Entity(tableName = "settings")
@@ -100,7 +107,7 @@ interface SettingsDao {
     suspend fun upsert(item: SettingsEntity)
 }
 
-@Database(entities = [DownloadEntity::class, SettingsEntity::class], version = 5, exportSchema = false)
+@Database(entities = [DownloadEntity::class, SettingsEntity::class], version = 6, exportSchema = false)
 @TypeConverters(DatabaseConverters::class)
 abstract class HistoryDatabase : RoomDatabase() {
     abstract fun downloadDao(): DownloadDao
