@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Key
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PhotoCamera
@@ -45,6 +46,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -69,6 +71,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.domenota.medialoader.core.logging.AppLog
+import com.domenota.medialoader.core.recognition.MusicRecognitionMode
 import com.domenota.medialoader.ui.components.AppCard
 import com.domenota.medialoader.ui.components.DownloadThumbnail
 import com.domenota.medialoader.ui.components.SourceIcon
@@ -104,6 +107,10 @@ fun SettingsScreen(
     hasYouTubeCookies: Boolean = false,
     onImportYouTubeCookies: (Uri) -> Unit = {},
     onClearYouTubeCookies: () -> Unit = {},
+    musicRecognitionMode: MusicRecognitionMode = MusicRecognitionMode.AUTO,
+    renameRecognizedTracks: Boolean = true,
+    onMusicRecognitionModeChange: (MusicRecognitionMode) -> Unit = {},
+    onRenameRecognizedTracksChange: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -182,6 +189,7 @@ fun SettingsScreen(
     var themeMode by remember { mutableStateOf(prefs.getString("theme", null) ?:
         if (prefs.getBoolean("dark", false)) "dark" else "light") }
     var themeDialog by remember { mutableStateOf(false) }
+    var recognitionDialog by remember { mutableStateOf(false) }
     var folderDialog by remember { mutableStateOf(false) }
     var folderName by remember { mutableStateOf("MediaLoader") }
     var confirmClear by remember { mutableStateOf(false) }
@@ -404,6 +412,45 @@ fun SettingsScreen(
         dismissButton = { TextButton(onClick = { logsDialog = false }) { Text("Закрыть") } },
     )
 
+    if (recognitionDialog) AlertDialog(
+        onDismissRequest = { recognitionDialog = false },
+        title = { Text("Распознавание музыки") },
+        text = {
+            Column {
+                listOf(
+                    MusicRecognitionMode.AUTO to ("Автоматически" to "После загрузки определить трек и записать метаданные"),
+                    MusicRecognitionMode.MANUAL to ("Только вручную" to "Запускать из меню скачанного MP3"),
+                    MusicRecognitionMode.OFF to ("Выключено" to "Не обращаться к сервису распознавания"),
+                ).forEach { (mode, labels) ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable {
+                            onMusicRecognitionModeChange(mode)
+                            recognitionDialog = false
+                        }.padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = musicRecognitionMode == mode,
+                            onClick = {
+                                onMusicRecognitionModeChange(mode)
+                                recognitionDialog = false
+                            },
+                        )
+                        Column(Modifier.padding(start = 8.dp)) {
+                            Text(labels.first, style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                labels.second,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { recognitionDialog = false }) { Text("Закрыть") } },
+    )
+
     if (themeDialog) AlertDialog(
         onDismissRequest = { themeDialog = false },
         title = { Text("Тема") },
@@ -465,6 +512,37 @@ fun SettingsScreen(
                     folderName = downloadFolder.substringAfter("Download/", "MediaLoader")
                     folderDialog = true
                 })
+            GroupDivider()
+            SettingRow(
+                Icons.Rounded.MusicNote,
+                "Распознавание музыки",
+                when (musicRecognitionMode) {
+                    MusicRecognitionMode.AUTO -> "Автоматически после загрузки"
+                    MusicRecognitionMode.MANUAL -> "Только вручную"
+                    MusicRecognitionMode.OFF -> "Выключено"
+                },
+                grouped = true,
+                iconTone = SettingIconTone.PURPLE,
+                onClick = { recognitionDialog = true },
+            )
+            GroupDivider()
+            SettingRow(
+                Icons.Rounded.MusicNote,
+                "Переименовывать найденные треки",
+                "Исполнитель — Название.mp3",
+                grouped = true,
+                iconTone = SettingIconTone.GREEN,
+                onClick = if (musicRecognitionMode == MusicRecognitionMode.OFF) null else ({
+                    onRenameRecognizedTracksChange(!renameRecognizedTracks)
+                }),
+                trailing = {
+                    Switch(
+                        checked = renameRecognizedTracks,
+                        enabled = musicRecognitionMode != MusicRecognitionMode.OFF,
+                        onCheckedChange = onRenameRecognizedTracksChange,
+                    )
+                },
+            )
             GroupDivider()
             SettingRow(Icons.Rounded.Key, "Ручной sessionid",
                 "Резервный вход Instagram", grouped = true, iconTone = SettingIconTone.PURPLE,
