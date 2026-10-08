@@ -85,6 +85,7 @@ class MediaRepository private constructor(context: Context) {
                 override fun migrate(db: SupportSQLiteDatabase) {
                     db.execSQL("ALTER TABLE downloads ADD COLUMN sourceAudioArtist TEXT")
                     db.execSQL("ALTER TABLE downloads ADD COLUMN sourceAudioTitle TEXT")
+                    db.execSQL("ALTER TABLE downloads ADD COLUMN sourceAudioArtworkUrl TEXT")
                     db.execSQL("ALTER TABLE downloads ADD COLUMN recognizedArtist TEXT")
                     db.execSQL("ALTER TABLE downloads ADD COLUMN recognizedTitle TEXT")
                     db.execSQL("ALTER TABLE downloads ADD COLUMN recognizedAlbum TEXT")
