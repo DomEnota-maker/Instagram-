@@ -134,7 +134,7 @@ fun SourceBrowserScreen(source: BrowserSource, onBack: () -> Unit, onDownload: (
                         if (!source.isSite(view.url)) return@post
                         val accepted = source.acceptedLink(link)
                         if (accepted == null) {
-                            Toast.makeText(context, "Открой публикацию или видео для загрузки", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Откройте публикацию или видео для загрузки", Toast.LENGTH_SHORT).show()
                             return@post
                         }
                         runCatching { syncSession(source, context.applicationContext) }
