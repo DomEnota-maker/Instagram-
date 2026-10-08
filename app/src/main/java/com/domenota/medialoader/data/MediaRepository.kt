@@ -10,6 +10,7 @@ import com.domenota.medialoader.core.database.HistoryDatabase
 import com.domenota.medialoader.core.model.MediaItem
 import com.domenota.medialoader.core.model.MediaType
 import com.domenota.medialoader.core.model.DownloadState
+import com.domenota.medialoader.core.recognition.MusicRecognitionMode
 import com.domenota.medialoader.core.provider.DefaultMediaResolver
 import com.domenota.medialoader.core.provider.InstagramProvider
 import com.domenota.medialoader.core.provider.MediaResolver
@@ -29,6 +30,9 @@ import com.domenota.medialoader.data.download.ActiveDownloadService
 import com.domenota.medialoader.data.download.VkDownloadEngine
 import com.domenota.medialoader.data.download.YouTubeDownloadEngine
 import com.domenota.medialoader.data.recognition.InstagramMusicRecognizer
+import com.domenota.medialoader.data.recognition.Mp3MetadataWriter
+import com.domenota.medialoader.data.recognition.MusicPostProcessor
+import com.domenota.medialoader.data.recognition.MusicRecognitionSettings
 import com.domenota.medialoader.data.recognition.RecognitionAudioPreprocessor
 import com.domenota.medialoader.data.rutube.RutubeYtDlpRuntime
 import com.domenota.medialoader.data.vk.VkYtDlpRuntime
@@ -98,19 +102,23 @@ class MediaRepository private constructor(context: Context) {
         ),
     )
     private val notifier = DownloadNotifier(appContext)
+    private val recognitionSettings = MusicRecognitionSettings(appContext)
     private val instagramMusicRecognizer = InstagramMusicRecognizer()
     private val recognitionAudioPreprocessor = RecognitionAudioPreprocessor(appContext)
     private val recognitionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val musicPostProcessor = MusicPostProcessor(
+        storage = storage,
+        history = history,
+        settings = recognitionSettings,
+        recognizer = instagramMusicRecognizer,
+        preprocessor = recognitionAudioPreprocessor,
+        metadataWriter = Mp3MetadataWriter(appContext),
+    )
     private val queue = DownloadQueue(
         history = history,
         engine = RoutingDownloadEngine(
             media = HttpDownloadEngine(appContext, storage, sessions::cookies),
-            audio = AudioDownloadEngine(
-                extractor = AudioExtractor(appContext, storage, sessions::cookies),
-                instagramRecognizer = instagramMusicRecognizer,
-                recognitionPreprocessor = recognitionAudioPreprocessor,
-                recognitionScope = recognitionScope,
-            ),
+            audio = AudioDownloadEngine(AudioExtractor(appContext, storage, sessions::cookies)),
             youtube = YouTubeDownloadEngine(appContext, storage, youtubeDl),
             vk = VkDownloadEngine(appContext, storage, vkDl),
             rutube = RutubeDownloadEngine(appContext, storage, rutubeDl),
@@ -118,6 +126,11 @@ class MediaRepository private constructor(context: Context) {
         existingNames = storage::existingNames,
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
         onBatchChanged = { id, items -> notifier.update(id, items) },
+        onCompleted = { task, _ ->
+            if (task.item.type == MediaType.AUDIO) {
+                recognitionScope.launch { musicPostProcessor.processDownloaded(task.id, task.item) }
+            }
+        },
     )
 
     init {
@@ -163,6 +176,12 @@ class MediaRepository private constructor(context: Context) {
     }
     fun selectDownloadFolder(uri: Uri) = storage.selectDirectory(uri)
     val usesSelectedFolder: Boolean get() = storage.usesSelectedFolder
+
+    val musicRecognitionMode: MusicRecognitionMode get() = recognitionSettings.mode
+    fun setMusicRecognitionMode(mode: MusicRecognitionMode) { recognitionSettings.mode = mode }
+    val renameRecognizedTracks: Boolean get() = recognitionSettings.renameRecognized
+    fun setRenameRecognizedTracks(enabled: Boolean) { recognitionSettings.renameRecognized = enabled }
+    suspend fun recognizeAudio(id: String) = musicPostProcessor.processExisting(id)
 
     fun isLoggedIn(): Boolean = sessions.isLoggedIn()
     suspend fun updateYtDlp(): String = youtubeDl.update()
