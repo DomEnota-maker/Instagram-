@@ -2,6 +2,7 @@ package com.domenota.medialoader.data.recognition
 
 import android.content.Context
 import android.media.MediaMetadataRetriever
+import android.net.Uri
 import com.arthenica.ffmpegkit.FFmpegKit
 import com.arthenica.ffmpegkit.ReturnCode
 import com.domenota.medialoader.core.recognition.RecognitionAudioSpec
@@ -21,6 +22,23 @@ import kotlin.coroutines.resume
  * At most the middle 12 seconds are decoded, so recognition never needs the whole MP3 in memory.
  */
 class RecognitionAudioPreprocessor(private val context: Context) {
+    suspend fun decode(savedUri: String): ShortArray = withContext(Dispatchers.IO) {
+        val source = File.createTempFile("recognition-source-", ".mp3", context.cacheDir)
+        try {
+            val uri = Uri.parse(savedUri)
+            val input = when (uri.scheme) {
+                "file" -> File(uri.path ?: throw IOException("Файл недоступен")).inputStream()
+                "content" -> context.contentResolver.openInputStream(uri)
+                    ?: throw IOException("Файл недоступен")
+                else -> throw IOException("Файл недоступен")
+            }
+            input.use { stream -> source.outputStream().use { stream.copyTo(it) } }
+            decode(source)
+        } finally {
+            source.delete()
+        }
+    }
+
     suspend fun decode(input: File): ShortArray = withContext(Dispatchers.IO) {
         val output = File.createTempFile("recognition-", ".pcm", context.cacheDir)
         try {
