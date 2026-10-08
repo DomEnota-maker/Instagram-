@@ -28,6 +28,7 @@ class InstagramMusicRecognizerTest {
             downloadUrl = "https://video.xx.fbcdn.net/song.m4a",
             audioArtist = "Artist",
             audioTitle = "Song",
+            audioArtworkUrl = "https://scontent.cdninstagram.com/music-cover.jpg",
         )
 
         val result = recognizer.recognize(item) {
@@ -37,6 +38,7 @@ class InstagramMusicRecognizerTest {
 
         assertEquals("Artist", result?.artist)
         assertEquals("Song", result?.title)
+        assertEquals("https://scontent.cdninstagram.com/music-cover.jpg", result?.artworkUrl)
         assertEquals(RecognitionSource.SOURCE_METADATA, result?.source)
         assertEquals(0, pcmLoads)
         assertEquals(0, acousticCalls)
