@@ -24,5 +24,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Unit tests and lint
+      - name: Prepare one-time upstream ShazamIO recognition fixture
+        run: |
+          curl --fail --location --retry 3 \
+            https://raw.githubusercontent.com/shazamio/ShazamIO/master/examples/data/Gloria.ogg \
+            --output /tmp/Gloria.ogg
+          ffmpeg -hide_banner -loglevel error -y -i /tmp/Gloria.ogg \
+            -ac 1 -ar 16000 -acodec pcm_s16le -f s16le /tmp/gloria.pcm
+      - name: Unit tests, live Shazam smoke and lint
+        env:
+          SHAZAM_LIVE_PCM: /tmp/gloria.pcm
         run: gradle :app:testDebugUnitTest :app:lintDebug
