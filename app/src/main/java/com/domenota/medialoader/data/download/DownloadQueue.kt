@@ -48,26 +48,20 @@ class DownloadQueue(
         scope.launch {
             enqueueLock.withLock { recoverInterruptedLocked() }
             val photos = ArrayDeque<Job>()
-            var previousPhoto: CompletableDeferred<Unit>? = null
             for (task in pending) {
                 try {
                     if (task.item.type == MediaType.PHOTO &&
                         task.item.sizeBytes != null && task.item.sizeBytes in 1..MAX_PARALLEL_PHOTO_BYTES) {
                         while (photos.size >= MAX_PHOTO_TRANSFERS) photos.removeFirst().join()
-                        val finished = CompletableDeferred<Unit>()
-                        val orderedTask = task.copy(publishAfter = previousPhoto)
-                        previousPhoto = finished
                         photos.addLast(scope.launch {
-                            try { process(orderedTask) }
+                            try { process(task) }
                             catch (cancelled: CancellationException) { throw cancelled }
                             catch (error: Exception) {
-                                AppLog.e("Download", "Parallel photo task failed · id=${orderedTask.id}", error)
+                                AppLog.e("Download", "Parallel photo task failed · id=${task.id}", error)
                             }
-                            finally { finished.complete(Unit) }
                         })
                     } else {
                         while (photos.isNotEmpty()) photos.removeFirst().join()
-                        previousPhoto = null
                         process(task)
                     }
                 } catch (cancelled: CancellationException) {
@@ -84,7 +78,9 @@ class DownloadQueue(
     suspend fun enqueue(items: List<MediaItem>): List<DownloadEntity> = enqueueLock.withLock {
         recoverInterruptedLocked()
         val groupId = if (items.size > 1) newId() else null
-        val queued = items.map { item ->
+        val batchCreatedAt = clock()
+        var previousPublication: CompletableDeferred<Unit>? = null
+        val queued = items.mapIndexed { index, item ->
             val taken = existingNames() + history.reservedNames()
             val preferredName = if (item.customName) item.originalName
                 else StorageNaming.normalizedMediaName(item.originalName, item.position)
@@ -97,7 +93,8 @@ class DownloadQueue(
                 state = DownloadState.QUEUED,
                 savedUri = null,
                 sizeBytes = item.sizeBytes,
-                createdAtEpochMillis = clock(),
+                // Stable tie-breaker for a batch: selection order must survive identical wall-clock ticks.
+                createdAtEpochMillis = batchCreatedAt - index,
                 sourceUrl = item.downloadUrl,
                 previewUrl = item.previewUrl,
                 groupId = groupId,
@@ -107,7 +104,17 @@ class DownloadQueue(
                 sourceAudioArtworkUrl = item.audioArtworkUrl,
             )
             history.save(entity)
-            pending.send(DownloadTask(id = entity.id, item = item, fileName = fileName))
+            val publicationDone = CompletableDeferred<Unit>()
+            pending.send(
+                DownloadTask(
+                    id = entity.id,
+                    item = item,
+                    fileName = fileName,
+                    publishAfter = previousPublication,
+                    publishDone = publicationDone,
+                ),
+            )
+            previousPublication = publicationDone
             AppLog.i(
                 "Download",
                 "Queued · id=${entity.id} · provider=${entity.providerId} · type=${entity.mediaType} · name=${entity.originalName}",
@@ -168,30 +175,40 @@ class DownloadQueue(
     }
 
     private suspend fun process(task: DownloadTask) {
-        // The job is registered before RUNNING becomes visible, so a cancel can always find it.
-        val job = scope.launch(start = CoroutineStart.LAZY) { transfer(task) }
-        val start = enqueueLock.withLock {
-            val entity = history.byId(task.id)
-            if (entity?.state != DownloadState.QUEUED) false
-            else {
-                running[task.id] = job
-                history.save(entity.copy(state = DownloadState.RUNNING, errorMessage = null))
-                AppLog.i("Download", "Started · id=${task.id} · provider=${entity.providerId} · name=${entity.originalName}")
-                refreshBatch(entity)
-                true
-            }
-        }
-        if (!start) { job.cancel(); return }
         try {
-            job.start()
-            job.join()
+            // The job is registered before RUNNING becomes visible, so a cancel can always find it.
+            val job = scope.launch(start = CoroutineStart.LAZY) { transfer(task) }
+            val start = enqueueLock.withLock {
+                val entity = history.byId(task.id)
+                if (entity?.state != DownloadState.QUEUED) false
+                else {
+                    running[task.id] = job
+                    history.save(entity.copy(state = DownloadState.RUNNING, errorMessage = null))
+                    AppLog.i("Download", "Started · id=${task.id} · provider=${entity.providerId} · name=${entity.originalName}")
+                    refreshBatch(entity)
+                    true
+                }
+            }
+            if (!start) {
+                job.cancel()
+                return
+            }
+            try {
+                job.start()
+                job.join()
+            } finally {
+                running.remove(task.id, job)
+                lastProgressAt.remove(task.id)
+            }
+            // A job cancelled before it started never reaches transfer(): do not leave the row RUNNING.
+            if (job.isCancelled) {
+                update(task.id) {
+                    if (it.state == DownloadState.RUNNING) it.copy(state = DownloadState.CANCELLED) else it
+                }
+            }
         } finally {
-            running.remove(task.id, job)
-            lastProgressAt.remove(task.id)
-        }
-        // A job cancelled before it started never reaches transfer(): do not leave the row RUNNING.
-        if (job.isCancelled) {
-            update(task.id) { if (it.state == DownloadState.RUNNING) it.copy(state = DownloadState.CANCELLED) else it }
+            // Always release the next item in the same batch, even after failure/cancellation.
+            task.publishDone?.complete(Unit)
         }
     }
 
