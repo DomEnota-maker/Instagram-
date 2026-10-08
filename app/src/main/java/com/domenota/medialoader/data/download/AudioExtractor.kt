@@ -3,10 +3,10 @@ package com.domenota.medialoader.data.download
 import android.content.Context
 import android.media.MediaExtractor
 import android.media.MediaFormat
-import android.net.Uri
 import com.arthenica.ffmpegkit.FFmpegKit
 import com.arthenica.ffmpegkit.ReturnCode
 import com.domenota.medialoader.core.provider.InstagramProvider
+import com.domenota.medialoader.data.storage.PublishedFile
 import com.domenota.medialoader.data.storage.StorageManager
 import java.io.File
 import java.io.IOException
@@ -32,20 +32,22 @@ class AudioExtractor(
     class VideoTooLargeException : IOException("Видео слишком большое для извлечения аудио.")
     class InsufficientStorageException : IOException("Недостаточно места для обработки аудио.")
 
-    /** @return saved content Uri and file size in bytes. */
+    data class SavedAudio(val published: PublishedFile, val sizeBytes: Long)
+
+    /** @return saved file metadata and file size in bytes. */
     suspend fun saveAudio(
         videoUrl: String,
         fileName: String,
         onProgress: suspend (bytesDownloaded: Long, totalBytes: Long?) -> Unit = { _, _ -> },
         beforePublish: suspend (audioFile: File) -> Unit = {},
-    ): Pair<Uri, Long> = withContext(Dispatchers.IO) {
+    ): SavedAudio = withContext(Dispatchers.IO) {
         val video = File.createTempFile("src", ".mp4", context.cacheDir)
         val audio = File.createTempFile("aud", ".mp3", context.cacheDir)
         try {
             download(videoUrl, video, onProgress)
             extract(video, audio)
             beforePublish(audio)
-            storage.publish(audio, fileName, "audio/mpeg") to audio.length()
+            SavedAudio(storage.publish(audio, fileName, "audio/mpeg"), audio.length())
         } finally {
             video.delete()
             audio.delete()
