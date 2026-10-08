@@ -208,25 +208,42 @@ class StorageManager(
         }
         if (Build.VERSION.SDK_INT >= 29) {
             val resolver = context.contentResolver
-            val values = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
-                put(MediaStore.MediaColumns.RELATIVE_PATH, relativeDirectory)
-                put(MediaStore.MediaColumns.IS_PENDING, 1)
+            val rejectedNames = linkedSetOf<String>()
+            var targetName = StorageNaming.availableName(fileName, existingNames())
+            repeat(MAX_PUBLISH_NAME_ATTEMPTS) {
+                var uri: Uri? = null
+                try {
+                    val values = ContentValues().apply {
+                        put(MediaStore.MediaColumns.DISPLAY_NAME, targetName)
+                        put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, relativeDirectory)
+                        put(MediaStore.MediaColumns.IS_PENDING, 1)
+                    }
+                    uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                        ?: throw IOException("Не удалось создать файл")
+                    val output = resolver.openOutputStream(uri)
+                        ?: throw IOException("Не удалось открыть файл для записи")
+                    output.use { out -> source.inputStream().use { it.copyTo(out) } }
+                    values.clear()
+                    values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                    resolver.update(uri, values, null, null)
+                    return@withContext uri
+                } catch (error: Exception) {
+                    uri?.let { pending -> runCatching { resolver.delete(pending, null, null) } }
+                    if (!isUniqueFileCollision(error)) throw error
+
+                    // On some Android builds a physical file can exist even when it was not
+                    // visible to our preflight folder/MediaStore query. Finalizing IS_PENDING
+                    // then fails with "Failed to build unique file". Remember the rejected
+                    // candidate locally as well, so the next attempt advances to _1, _2, ...
+                    rejectedNames += targetName
+                    targetName = StorageNaming.availableName(
+                        fileName,
+                        existingNames() + rejectedNames,
+                    )
+                }
             }
-            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                ?: throw IOException("Не удалось создать файл")
-            try {
-                val output = resolver.openOutputStream(uri) ?: throw IOException("Не удалось открыть файл для записи")
-                output.use { out -> source.inputStream().use { it.copyTo(out) } }
-                values.clear()
-                values.put(MediaStore.MediaColumns.IS_PENDING, 0)
-                resolver.update(uri, values, null, null)
-            } catch (error: Exception) {
-                resolver.delete(uri, null, null)
-                throw error
-            }
-            uri
+            throw IOException("Не удалось подобрать свободное имя файла")
         } else {
             val folder = publicFolder()
             if (!folder.exists() && !folder.mkdirs()) throw IOException("Не удалось создать папку")
@@ -239,6 +256,17 @@ class StorageManager(
                 }
             }
         }
+    }
+
+    private fun isUniqueFileCollision(error: Throwable): Boolean {
+        var current: Throwable? = error
+        while (current != null) {
+            if (current.message?.contains("Failed to build unique file", ignoreCase = true) == true) {
+                return true
+            }
+            current = current.cause
+        }
+        return false
     }
 
     /** Rename an app-owned MediaStore entry from an older release; keep history unchanged on failure. */
@@ -263,5 +291,9 @@ class StorageManager(
                 cursor.moveToFirst() && cursor.getString(0) == newName
             } == true
         }.getOrDefault(false)
+    }
+
+    private companion object {
+        const val MAX_PUBLISH_NAME_ATTEMPTS = 100
     }
 }
