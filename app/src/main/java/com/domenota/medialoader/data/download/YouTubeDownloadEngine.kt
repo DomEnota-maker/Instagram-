@@ -41,6 +41,7 @@ class YouTubeDownloadEngine(
                     reporter.join()
                 }
             }
+            task.publishAfter?.await()
             val uri = storage.publish(file, task.fileName, if (audioOnly) "audio/mpeg" else "video/mp4")
             return DownloadResult(uri.toString(), file.length())
         } catch (cancelled: CancellationException) {
