@@ -79,13 +79,20 @@ class DownloadQueueTest {
     private fun withQueue(
         engine: DownloadEngine,
         existing: Set<String> = emptySet(),
+        clock: () -> Long = System::currentTimeMillis,
         block: suspend (FakeDao, DownloadQueue) -> Unit,
     ) {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         try {
             runBlocking {
                 val dao = FakeDao()
-                val queue = DownloadQueue(HistoryRepository(dao), engine, { existing }, scope)
+                val queue = DownloadQueue(
+                    HistoryRepository(dao),
+                    engine,
+                    { existing },
+                    scope,
+                    clock = clock,
+                )
                 block(dao, queue)
             }
         } finally {
@@ -142,6 +149,56 @@ class DownloadQueueTest {
             dao.waitUntil { rows -> rows.size == 3 && rows.all { it.state == DownloadState.COMPLETED } }
             assertEquals(3, started.size)
             assertEquals(listOf("photo_1.jpg", "photo_2.jpg", "photo_3.jpg"), published.toList())
+        }
+    }
+
+    @Test fun failedMiddlePhotoReleasesNextPublicationGate() {
+        val published = CopyOnWriteArrayList<String>()
+        val engine = object : DownloadEngine {
+            override suspend fun download(
+                task: DownloadTask,
+                onProgress: suspend (Long, Long?) -> Unit,
+            ): DownloadResult {
+                delay(
+                    when (task.fileName) {
+                        "photo_1.jpg" -> 120
+                        "photo_2.jpg" -> 20
+                        else -> 10
+                    },
+                )
+                task.publishAfter?.await()
+                if (task.fileName == "photo_2.jpg") throw DownloadFailure("boom")
+                published.add(task.fileName)
+                return DownloadResult("content://saved/${task.fileName}", 10L)
+            }
+        }
+
+        withQueue(engine) { dao, queue ->
+            queue.enqueue((1..3).map { item("photo_$it.jpg", size = 350_000L) })
+            dao.waitUntil { rows ->
+                rows.size == 3 && rows.none {
+                    it.state == DownloadState.QUEUED || it.state == DownloadState.RUNNING
+                }
+            }
+            assertEquals(listOf("photo_1.jpg", "photo_3.jpg"), published.toList())
+            assertEquals(DownloadState.FAILED, dao.all().first { it.originalName == "photo_2.jpg" }.state)
+        }
+    }
+
+    @Test fun batchHistoryOrderIsStableWhenClockDoesNotAdvance() {
+        withQueue(FakeEngine(), clock = { 123_456L }) { dao, queue ->
+            val selected = listOf(
+                item("photo_1.jpg"),
+                item("photo_2.jpg"),
+                item("photo_3.jpg"),
+            )
+            queue.enqueue(selected)
+            dao.waitUntil { rows -> rows.size == 3 && rows.all { it.state == DownloadState.COMPLETED } }
+
+            assertEquals(
+                listOf("photo_1.jpg", "photo_2.jpg", "photo_3.jpg"),
+                dao.all().map { it.originalName },
+            )
         }
     }
 
