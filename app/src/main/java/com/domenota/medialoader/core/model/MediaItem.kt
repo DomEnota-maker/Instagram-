@@ -10,6 +10,9 @@ data class MediaItem(
     val previewUrl: String? = null,
     val sizeBytes: Long? = null,
     val audioAvailable: Boolean? = null,
+    /** Optional source-provided music metadata. Filled before acoustic recognition when available. */
+    val audioArtist: String? = null,
+    val audioTitle: String? = null,
     /** Stable publication identifier. Separate queue submissions remain distinct batches. */
     val sourceGroupId: String? = null,
     val position: Int? = null,
