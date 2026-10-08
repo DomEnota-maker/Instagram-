@@ -9,6 +9,7 @@ import com.domenota.medialoader.core.database.DownloadEntity
 import com.domenota.medialoader.core.model.MediaItem
 import com.domenota.medialoader.core.model.MediaType
 import com.domenota.medialoader.core.provider.ProviderException
+import com.domenota.medialoader.core.recognition.MusicRecognitionMode
 import com.domenota.medialoader.core.provider.RutubeLinkParser
 import com.domenota.medialoader.core.provider.VkLinkParser
 import com.domenota.medialoader.core.provider.YouTubeLinkParser
@@ -55,6 +56,11 @@ class MediaLoaderViewModel(application: Application) : AndroidViewModel(applicat
     val hiddenItems: StateFlow<List<DownloadEntity>> =
         repository.hiddenItems.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    private val _musicRecognitionMode = MutableStateFlow(repository.musicRecognitionMode)
+    val musicRecognitionMode: StateFlow<MusicRecognitionMode> = _musicRecognitionMode.asStateFlow()
+    private val _renameRecognizedTracks = MutableStateFlow(repository.renameRecognizedTracks)
+    val renameRecognizedTracks: StateFlow<Boolean> = _renameRecognizedTracks.asStateFlow()
+
     private val _ytDlpUpdate = MutableStateFlow(YoutubeDlAndroid(application).lastUpdateStatus)
     val ytDlpUpdate: StateFlow<String?> = _ytDlpUpdate.asStateFlow()
     private val _ytDlpUpdating = MutableStateFlow(false)
@@ -68,6 +74,29 @@ class MediaLoaderViewModel(application: Application) : AndroidViewModel(applicat
     val vkSignedIn: StateFlow<Boolean> = _vkSignedIn.asStateFlow()
     private val _rutubeSignedIn = MutableStateFlow(repository.hasRutubeSession)
     val rutubeSignedIn: StateFlow<Boolean> = _rutubeSignedIn.asStateFlow()
+
+    fun setMusicRecognitionMode(mode: MusicRecognitionMode) {
+        repository.setMusicRecognitionMode(mode)
+        _musicRecognitionMode.value = mode
+    }
+
+    fun setRenameRecognizedTracks(enabled: Boolean) {
+        repository.setRenameRecognizedTracks(enabled)
+        _renameRecognizedTracks.value = enabled
+    }
+
+    fun recognizeDownload(id: String) {
+        viewModelScope.launch {
+            Toast.makeText(getApplication(), "Ищу название трека…", Toast.LENGTH_SHORT).show()
+            val result = repository.recognizeAudio(id)
+            Toast.makeText(
+                getApplication(),
+                if (result == null) "Трек не удалось определить"
+                else "${result.artist} — ${result.title}",
+                Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
 
     fun importYouTubeCookies(uri: Uri) {
         viewModelScope.launch {
