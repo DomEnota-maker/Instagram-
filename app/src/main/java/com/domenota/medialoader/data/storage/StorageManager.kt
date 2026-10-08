@@ -18,6 +18,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
+data class PublishedFile(val uri: Uri, val fileName: String)
+
 /** All knowledge about where files are stored and how they are written lives here. */
 class StorageManager(
     private val context: Context,
@@ -123,9 +125,8 @@ class StorageManager(
     suspend fun restoreFromTrash(id: String, name: String, mimeType: String): Pair<String, String> {
         val source = File(trash, id)
         if (!source.isFile) throw IOException("Файл в корзине не найден")
-        val fileName = StorageNaming.availableName(name, existingNames())
-        val uri = publish(source, fileName, mimeType)
-        return fileName to uri.toString()
+        val published = publish(source, name, mimeType)
+        return published.fileName to published.uri.toString()
     }
 
     suspend fun discardTrashed(id: String) = withContext(Dispatchers.IO) { File(trash, id).delete() }
@@ -190,55 +191,72 @@ class StorageManager(
         names
     }
 
-    /** Copies a finished temp file into the download folder. Returns its content Uri. */
-    suspend fun publish(source: File, fileName: String, mimeType: String): Uri = withContext(Dispatchers.IO) {
-        selectedFolder()?.let { folder ->
-            if (!folder.canWrite()) throw IOException("Выбранная папка недоступна")
-            val document = folder.createFile(mimeType, fileName)
-                ?: throw IOException("Не удалось создать файл в выбранной папке")
-            try {
-                val output = context.contentResolver.openOutputStream(document.uri, "w")
-                    ?: throw IOException("Не удалось открыть выбранную папку")
-                output.use { out -> source.inputStream().use { it.copyTo(out) } }
-            } catch (error: Exception) {
-                document.delete()
-                throw error
-            }
-            return@withContext document.uri
-        }
-        if (Build.VERSION.SDK_INT >= 29) {
-            val resolver = context.contentResolver
-            val values = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
-                put(MediaStore.MediaColumns.RELATIVE_PATH, relativeDirectory)
-                put(MediaStore.MediaColumns.IS_PENDING, 1)
-            }
-            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                ?: throw IOException("Не удалось создать файл")
-            try {
-                val output = resolver.openOutputStream(uri) ?: throw IOException("Не удалось открыть файл для записи")
-                output.use { out -> source.inputStream().use { it.copyTo(out) } }
-                values.clear()
-                values.put(MediaStore.MediaColumns.IS_PENDING, 0)
-                resolver.update(uri, values, null, null)
-            } catch (error: Exception) {
-                resolver.delete(uri, null, null)
-                throw error
-            }
-            uri
-        } else {
-            val folder = publicFolder()
-            if (!folder.exists() && !folder.mkdirs()) throw IOException("Не удалось создать папку")
-            val target = File(folder, fileName)
-            source.copyTo(target, overwrite = false)
-            // Android 8–9: index the file so it gets a content:// Uri that other apps can open.
-            suspendCancellableCoroutine { cont ->
-                MediaScannerConnection.scanFile(context, arrayOf(target.absolutePath), arrayOf(mimeType)) { _, uri ->
-                    cont.resume(uri ?: Uri.fromFile(target))
+    /** Copies a finished temp file into the download folder and returns the actual saved name. */
+    suspend fun publish(source: File, fileName: String, mimeType: String): PublishedFile =
+        withContext(Dispatchers.IO) {
+            val initialNames = existingNames().toMutableSet()
+            selectedFolder()?.let { folder ->
+                if (!folder.canWrite()) throw IOException("Выбранная папка недоступна")
+                val actualName = StorageNaming.availableName(fileName, initialNames)
+                val document = folder.createFile(mimeType, actualName)
+                    ?: throw IOException("Не удалось создать файл в выбранной папке")
+                try {
+                    val output = context.contentResolver.openOutputStream(document.uri, "w")
+                        ?: throw IOException("Не удалось открыть выбранную папку")
+                    output.use { out -> source.inputStream().use { it.copyTo(out) } }
+                } catch (error: Exception) {
+                    document.delete()
+                    throw error
                 }
+                return@withContext PublishedFile(document.uri, actualName)
+            }
+            if (Build.VERSION.SDK_INT >= 29) {
+                val resolver = context.contentResolver
+                val rejectedNames = mutableSetOf<String>()
+                repeat(MAX_MEDIASTORE_NAME_ATTEMPTS) {
+                    val actualName = StorageNaming.availableName(fileName, initialNames + rejectedNames)
+                    val values = ContentValues().apply {
+                        put(MediaStore.MediaColumns.DISPLAY_NAME, actualName)
+                        put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, relativeDirectory)
+                        put(MediaStore.MediaColumns.IS_PENDING, 1)
+                    }
+                    val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                        ?: throw IOException("Не удалось создать файл")
+                    try {
+                        val output = resolver.openOutputStream(uri)
+                            ?: throw IOException("Не удалось открыть файл для записи")
+                        output.use { out -> source.inputStream().use { it.copyTo(out) } }
+                        values.clear()
+                        values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                        resolver.update(uri, values, null, null)
+                        return@withContext PublishedFile(uri, actualName)
+                    } catch (error: Exception) {
+                        resolver.delete(uri, null, null)
+                        val nameCollision = error is IllegalStateException &&
+                            error.message?.contains("Failed to build unique file", ignoreCase = true) == true
+                        if (!nameCollision) throw error
+                        rejectedNames += actualName
+                    }
+                }
+                throw IOException("Не удалось подобрать свободное имя файла")
+            } else {
+                val folder = publicFolder()
+                if (!folder.exists() && !folder.mkdirs()) throw IOException("Не удалось создать папку")
+                val actualName = StorageNaming.availableName(fileName, initialNames)
+                val target = File(folder, actualName)
+                source.copyTo(target, overwrite = false)
+                val uri = suspendCancellableCoroutine { cont ->
+                    MediaScannerConnection.scanFile(context, arrayOf(target.absolutePath), arrayOf(mimeType)) { _, uri ->
+                        cont.resume(uri ?: Uri.fromFile(target))
+                    }
+                }
+                PublishedFile(uri, actualName)
             }
         }
+
+    private companion object {
+        const val MAX_MEDIASTORE_NAME_ATTEMPTS = 100
     }
 
     /** Rename an app-owned MediaStore entry from an older release; keep history unchanged on failure. */

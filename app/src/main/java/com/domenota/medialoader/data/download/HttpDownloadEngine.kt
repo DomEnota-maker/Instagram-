@@ -28,16 +28,24 @@ class HttpDownloadEngine(
     ): DownloadResult = withContext(Dispatchers.IO) {
         val temporary = File.createTempFile("media-", ".part", context.cacheDir)
         try {
-            val size = transfer(task.item.downloadUrl, temporary, onProgress)
+            val size = try {
+                transfer(task.item.downloadUrl, temporary, onProgress)
+            } catch (error: DownloadFailure) {
+                throw error
+            } catch (error: IOException) {
+                if (BuildConfig.DEBUG) Log.w("MediaLoaderDownload", "Transfer failed: ${error.javaClass.simpleName}")
+                throw DownloadFailure("Нет соединения или файл недоступен. Повторите попытку.", error)
+            }
             task.publishAfter?.await()
             val mime = if (task.item.type == MediaType.VIDEO) "video/mp4" else "image/jpeg"
-            val uri = storage.publish(temporary, task.fileName, mime)
-            DownloadResult(uri.toString(), size)
+            val published = try {
+                storage.publish(temporary, task.fileName, mime)
+            } catch (error: Exception) {
+                throw DownloadFailure("Не удалось сохранить файл. Повторите попытку.", error)
+            }
+            DownloadResult(published.uri.toString(), size, published.fileName)
         } catch (error: DownloadFailure) {
             throw error
-        } catch (error: IOException) {
-            if (BuildConfig.DEBUG) Log.w("MediaLoaderDownload", "Transfer failed: ${error.javaClass.simpleName}")
-            throw DownloadFailure("Нет соединения или файл недоступен. Повторите анализ ссылки.", error)
         } finally {
             temporary.delete()
         }

@@ -38,8 +38,8 @@ class VkDownloadEngine(
                 }
             }
             task.publishAfter?.await()
-            val uri = storage.publish(file, task.fileName, if (audioOnly) "audio/mpeg" else "video/mp4")
-            return DownloadResult(uri.toString(), file.length())
+            val published = storage.publish(file, task.fileName, if (audioOnly) "audio/mpeg" else "video/mp4")
+            return DownloadResult(published.uri.toString(), file.length(), published.fileName)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: DownloadFailure) {

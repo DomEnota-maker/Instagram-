@@ -9,8 +9,8 @@ class AudioDownloadEngine(private val extractor: AudioExtractor) : DownloadEngin
         task: DownloadTask,
         onProgress: suspend (bytesDownloaded: Long, totalBytes: Long?) -> Unit,
     ): DownloadResult = try {
-        val (uri, size) = extractor.saveAudio(task.item.downloadUrl, task.fileName, onProgress)
-        DownloadResult(uri.toString(), size)
+        val saved = extractor.saveAudio(task.item.downloadUrl, task.fileName, onProgress)
+        DownloadResult(saved.published.uri.toString(), saved.sizeBytes, saved.published.fileName)
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (error: AudioExtractor.NoAudioTrackException) {
@@ -22,6 +22,6 @@ class AudioDownloadEngine(private val extractor: AudioExtractor) : DownloadEngin
     } catch (error: LinkageError) {
         throw DownloadFailure("Не удалось запустить обработку MP3. Обновите приложение.", error)
     } catch (error: Exception) {
-        throw DownloadFailure("Не удалось извлечь аудио. Повторите анализ ссылки.", error)
+        throw DownloadFailure("Не удалось извлечь аудио. Повторите попытку.", error)
     }
 }
