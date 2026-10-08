@@ -5,7 +5,11 @@ import com.domenota.medialoader.core.model.DownloadTask
 /** Error whose message is safe to show to the user as is. */
 class DownloadFailure(message: String, cause: Throwable? = null) : Exception(message, cause)
 
-data class DownloadResult(val savedUri: String, val sizeBytes: Long?)
+data class DownloadResult(
+    val savedUri: String,
+    val sizeBytes: Long?,
+    val fileName: String? = null,
+)
 
 /**
  * Turns one task into a saved file. The UI and providers know nothing about how this is done
