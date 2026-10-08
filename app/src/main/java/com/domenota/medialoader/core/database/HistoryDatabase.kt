@@ -35,6 +35,7 @@ data class DownloadEntity(
     val formatSelector: String? = null,
     val sourceAudioArtist: String? = null,
     val sourceAudioTitle: String? = null,
+    val sourceAudioArtworkUrl: String? = null,
     val recognizedArtist: String? = null,
     val recognizedTitle: String? = null,
     val recognizedAlbum: String? = null,
