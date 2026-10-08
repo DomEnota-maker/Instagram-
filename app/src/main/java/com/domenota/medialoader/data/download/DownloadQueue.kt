@@ -221,6 +221,7 @@ class DownloadQueue(
                 it.copy(
                     state = DownloadState.COMPLETED,
                     savedUri = result.savedUri,
+                    originalName = result.fileName ?: it.originalName,
                     sizeBytes = result.sizeBytes ?: it.sizeBytes,
                     bytesDownloaded = result.sizeBytes ?: it.bytesDownloaded,
                     errorMessage = null,
@@ -267,6 +268,6 @@ class DownloadQueue(
         const val MAX_PARALLEL_PHOTO_BYTES = 5L * 1024 * 1024
         const val MAX_PHOTO_TRANSFERS = 3
         const val INTERRUPTED = "Загрузка прервана. Повторите."
-        const val GENERIC_FAILURE = "Не удалось сохранить файл. Повторите анализ ссылки."
+        const val GENERIC_FAILURE = "Не удалось сохранить файл. Повторите попытку."
     }
 }
