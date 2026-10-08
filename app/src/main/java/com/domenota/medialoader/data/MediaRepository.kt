@@ -298,6 +298,71 @@ class MediaRepository private constructor(context: Context) {
         history.clearHistory()
         storage.emptyTrash()
     }
+    suspend fun recognizeDownload(id: String): MusicRecognitionResult? {
+        val row = history.byId(id) ?: return null
+        if (row.state != DownloadState.COMPLETED || row.mediaType != MediaType.AUDIO || row.hidden) return null
+        val savedUri = row.savedUri ?: return null
+        val item = MediaItem(
+            id = row.id,
+            providerId = row.providerId,
+            type = row.mediaType,
+            originalName = row.originalName,
+            downloadUrl = row.sourceUrl ?: savedUri,
+            previewUrl = row.previewUrl,
+            audioArtist = row.sourceAudioArtist,
+            audioTitle = row.sourceAudioTitle,
+        )
+        val result = instagramMusicRecognizer.recognize(item) {
+            recognitionAudioPreprocessor.decode(savedUri)
+        } ?: return null
+        applyRecognition(id, savedUri, result)
+        return result
+    }
+
+    private suspend fun applyRecognition(
+        id: String,
+        savedUri: String,
+        result: MusicRecognitionResult,
+    ) {
+        val original = history.byId(id) ?: return
+
+        val tagged = runCatching { musicMetadataWriter.write(savedUri, result) }
+            .onFailure { AppLog.w("Recognition", "ID3 update failed; keeping original audio bytes.", it) }
+            .getOrDefault(false)
+        if (!tagged) AppLog.w("Recognition", "ID3 update skipped or failed · id=$id")
+
+        var finalName = original.originalName
+        var finalUri = savedUri
+        if (recognitionSettings.renameRecognized) {
+            val stem = StorageNaming.sanitizeStem("${result.artist} - ${result.title}")
+            val preferred = StorageNaming.mediaFileName(stem, null, "mp3")
+            if (preferred != original.originalName) {
+                val taken = (storage.existingNames() - original.originalName) + history.reservedNames()
+                val desired = StorageNaming.availableName(preferred, taken)
+                storage.renameDownload(savedUri, desired)?.let { renamedUri ->
+                    finalName = desired
+                    finalUri = renamedUri
+                }
+            }
+        }
+
+        val latest = history.byId(id) ?: original
+        history.save(
+            latest.copy(
+                originalName = finalName,
+                savedUri = latest.savedUri ?: finalUri,
+                recognizedArtist = result.artist,
+                recognizedTitle = result.title,
+                recognizedAlbum = result.album,
+                recognitionTrackId = result.trackId,
+                recognitionSource = result.source.name,
+            ),
+        )
+        AppLog.i(
+            "Recognition",
+            "Applied · id=$id · source=${result.source} · tagged=$tagged · name=$finalName",
+        )
+    }
     suspend fun retry(id: String) {
         val previous = history.byId(id) ?: return
         if (previous.sourceUrl == null) return
