@@ -104,6 +104,7 @@ class DownloadQueue(
                 formatSelector = item.formatSelector,
                 sourceAudioArtist = item.audioArtist,
                 sourceAudioTitle = item.audioTitle,
+                sourceAudioArtworkUrl = item.audioArtworkUrl,
             )
             history.save(entity)
             pending.send(DownloadTask(id = entity.id, item = item, fileName = fileName))
@@ -132,7 +133,8 @@ class DownloadQueue(
         pending.send(DownloadTask(queued.id, MediaItem(queued.id, queued.providerId,
             queued.mediaType, queued.originalName, url, previewUrl = queued.previewUrl,
             sizeBytes = queued.sizeBytes, formatSelector = queued.formatSelector,
-            audioArtist = queued.sourceAudioArtist, audioTitle = queued.sourceAudioTitle), name))
+            audioArtist = queued.sourceAudioArtist, audioTitle = queued.sourceAudioTitle,
+            audioArtworkUrl = queued.sourceAudioArtworkUrl), name))
         AppLog.i("Download", "Retry queued · id=${queued.id} · provider=${queued.providerId} · name=${queued.originalName}")
         refreshBatch(queued)
     }
