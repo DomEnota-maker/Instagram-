@@ -25,6 +25,50 @@ class StorageManager(
 ) {
     private val trash: File get() = File(context.filesDir, "trash")
 
+    /** Copies an existing saved download into an app-private temporary file. */
+    suspend fun copyDownloadToTemp(savedUri: String, suffix: String = ".mp3"): File =
+        withContext(Dispatchers.IO) {
+            val uri = Uri.parse(savedUri)
+            val target = File.createTempFile("owned-download-", suffix, context.cacheDir)
+            try {
+                when (uri.scheme) {
+                    "file" -> File(uri.path ?: throw IOException("Файл недоступен"))
+                        .inputStream().use { input -> target.outputStream().use { input.copyTo(it) } }
+                    "content" -> {
+                        val input = context.contentResolver.openInputStream(uri)
+                            ?: throw IOException("Файл недоступен")
+                        input.use { stream -> target.outputStream().use { stream.copyTo(it) } }
+                    }
+                    else -> throw IOException("Файл недоступен")
+                }
+                target
+            } catch (error: Exception) {
+                target.delete()
+                throw error
+            }
+        }
+
+    /** Replaces bytes of an app-owned download while keeping the same Uri whenever possible. */
+    suspend fun replaceDownload(savedUri: String, source: File): Boolean = withContext(Dispatchers.IO) {
+        val uri = Uri.parse(savedUri)
+        runCatching {
+            when (uri.scheme) {
+                "file" -> {
+                    val target = File(uri.path ?: return@runCatching false)
+                    source.copyTo(target, overwrite = true)
+                    true
+                }
+                "content" -> {
+                    val output = context.contentResolver.openOutputStream(uri, "w")
+                        ?: return@runCatching false
+                    output.use { out -> source.inputStream().use { it.copyTo(out) } }
+                    true
+                }
+                else -> false
+            }
+        }.getOrDefault(false)
+    }
+
     /** Copies an owned download into private trash before removing the public copy. */
     suspend fun moveToTrash(id: String, savedUri: String) = withContext(Dispatchers.IO) {
         val uri = Uri.parse(savedUri)
