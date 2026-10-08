@@ -38,6 +38,7 @@ data class DownloadEntity(
     val recognizedArtist: String? = null,
     val recognizedTitle: String? = null,
     val recognizedAlbum: String? = null,
+    val recognitionTrackId: String? = null,
     val recognitionSource: String? = null,
     val recognitionArtworkUrl: String? = null,
 )
