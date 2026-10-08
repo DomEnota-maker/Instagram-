@@ -73,6 +73,7 @@ import com.domenota.medialoader.ui.screens.SourceBrowserScreen
 @Composable
 fun MediaLoaderApp(
     sharedText: String? = null,
+    sharedTextGeneration: Int = 0,
     onSharedTextConsumed: () -> Unit = {},
     viewModel: MediaLoaderViewModel = viewModel(),
 ) {
@@ -207,8 +208,12 @@ fun MediaLoaderApp(
         downloads.firstOrNull { it.id == id }?.let { shareSavedFile(context, it) }
     }
 
-    LaunchedEffect(sharedText) {
+    LaunchedEffect(sharedText, sharedTextGeneration) {
         if (!sharedText.isNullOrBlank()) {
+            // ACTION_SEND is explicit user intent and always wins over clipboard auto-import.
+            // Mark the launch clipboard check as already handled so an older clipboard URL
+            // cannot overwrite the newly shared URL when the activity resumes.
+            checkedClipboardAtLaunch = true
             pendingUrl = extractFirstUrl(sharedText) ?: sharedText
             lastHandledLink = pendingUrl
             navigateTo(AppDestination.Home.route)
