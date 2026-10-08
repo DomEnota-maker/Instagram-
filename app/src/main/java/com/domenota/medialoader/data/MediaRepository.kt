@@ -7,7 +7,6 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.domenota.medialoader.core.database.DownloadEntity
 import com.domenota.medialoader.core.database.HistoryDatabase
-import com.domenota.medialoader.core.logging.AppLog
 import com.domenota.medialoader.core.model.MediaItem
 import com.domenota.medialoader.core.model.MediaType
 import com.domenota.medialoader.core.model.DownloadState
@@ -91,6 +90,7 @@ class MediaRepository private constructor(context: Context) {
                     db.execSQL("ALTER TABLE downloads ADD COLUMN recognizedAlbum TEXT")
                     db.execSQL("ALTER TABLE downloads ADD COLUMN recognitionTrackId TEXT")
                     db.execSQL("ALTER TABLE downloads ADD COLUMN recognitionSource TEXT")
+                    db.execSQL("ALTER TABLE downloads ADD COLUMN recognitionArtworkUrl TEXT")
                 }
             }).build().downloadDao(),
     )
@@ -106,8 +106,6 @@ class MediaRepository private constructor(context: Context) {
     private val recognitionSettings = MusicRecognitionSettings(appContext)
     private val instagramMusicRecognizer = InstagramMusicRecognizer()
     private val recognitionAudioPreprocessor = RecognitionAudioPreprocessor(appContext)
-    private val recognitionSettings = RecognitionSettings(appContext)
-    private val musicMetadataWriter = MusicMetadataWriter(appContext, storage)
     private val recognitionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val musicPostProcessor = MusicPostProcessor(
         storage = storage,
@@ -186,16 +184,6 @@ class MediaRepository private constructor(context: Context) {
     fun setRenameRecognizedTracks(enabled: Boolean) { recognitionSettings.renameRecognized = enabled }
     suspend fun recognizeAudio(id: String) = musicPostProcessor.processExisting(id)
 
-    val musicRecognitionMode: MusicRecognitionMode get() = recognitionSettings.mode
-    val renameRecognizedMusic: Boolean get() = recognitionSettings.renameRecognized
-
-    fun setMusicRecognitionMode(mode: MusicRecognitionMode) {
-        recognitionSettings.mode = mode
-    }
-
-    fun setRenameRecognizedMusic(enabled: Boolean) {
-        recognitionSettings.renameRecognized = enabled
-    }
     fun isLoggedIn(): Boolean = sessions.isLoggedIn()
     suspend fun updateYtDlp(): String = youtubeDl.update()
     val hasYouTubeCookies: Boolean get() = youtubeDl.hasCookies
@@ -297,71 +285,6 @@ class MediaRepository private constructor(context: Context) {
     suspend fun clearHistory() {
         history.clearHistory()
         storage.emptyTrash()
-    }
-    suspend fun recognizeDownload(id: String): MusicRecognitionResult? {
-        val row = history.byId(id) ?: return null
-        if (row.state != DownloadState.COMPLETED || row.mediaType != MediaType.AUDIO || row.hidden) return null
-        val savedUri = row.savedUri ?: return null
-        val item = MediaItem(
-            id = row.id,
-            providerId = row.providerId,
-            type = row.mediaType,
-            originalName = row.originalName,
-            downloadUrl = row.sourceUrl ?: savedUri,
-            previewUrl = row.previewUrl,
-            audioArtist = row.sourceAudioArtist,
-            audioTitle = row.sourceAudioTitle,
-        )
-        val result = instagramMusicRecognizer.recognize(item) {
-            recognitionAudioPreprocessor.decode(savedUri)
-        } ?: return null
-        applyRecognition(id, savedUri, result)
-        return result
-    }
-
-    private suspend fun applyRecognition(
-        id: String,
-        savedUri: String,
-        result: MusicRecognitionResult,
-    ) {
-        val original = history.byId(id) ?: return
-
-        val tagged = runCatching { musicMetadataWriter.write(savedUri, result) }
-            .onFailure { AppLog.w("Recognition", "ID3 update failed; keeping original audio bytes.", it) }
-            .getOrDefault(false)
-        if (!tagged) AppLog.w("Recognition", "ID3 update skipped or failed · id=$id")
-
-        var finalName = original.originalName
-        var finalUri = savedUri
-        if (recognitionSettings.renameRecognized) {
-            val stem = StorageNaming.sanitizeStem("${result.artist} - ${result.title}")
-            val preferred = StorageNaming.mediaFileName(stem, null, "mp3")
-            if (preferred != original.originalName) {
-                val taken = (storage.existingNames() - original.originalName) + history.reservedNames()
-                val desired = StorageNaming.availableName(preferred, taken)
-                storage.renameDownload(savedUri, desired)?.let { renamedUri ->
-                    finalName = desired
-                    finalUri = renamedUri
-                }
-            }
-        }
-
-        val latest = history.byId(id) ?: original
-        history.save(
-            latest.copy(
-                originalName = finalName,
-                savedUri = latest.savedUri ?: finalUri,
-                recognizedArtist = result.artist,
-                recognizedTitle = result.title,
-                recognizedAlbum = result.album,
-                recognitionTrackId = result.trackId,
-                recognitionSource = result.source.name,
-            ),
-        )
-        AppLog.i(
-            "Recognition",
-            "Applied · id=$id · source=${result.source} · tagged=$tagged · name=$finalName",
-        )
     }
     suspend fun retry(id: String) {
         val previous = history.byId(id) ?: return
