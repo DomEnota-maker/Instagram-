@@ -100,6 +100,12 @@ class MediaRepository private constructor(context: Context) {
             }, object : Migration(6, 7) {
                 override fun migrate(db: SupportSQLiteDatabase) {
                     db.execSQL("ALTER TABLE downloads ADD COLUMN sourcePageUrl TEXT")
+                    // Older YouTube/VK/RUTUBE rows already stored their canonical page URL in sourceUrl.
+                    // Instagram sourceUrl is a CDN media URL, so it must not be guessed/backfilled.
+                    db.execSQL(
+                        "UPDATE downloads SET sourcePageUrl = sourceUrl " +
+                            "WHERE providerId IN ('youtube', 'vk', 'rutube') AND sourceUrl IS NOT NULL",
+                    )
                 }
             }).build().downloadDao(),
     )
