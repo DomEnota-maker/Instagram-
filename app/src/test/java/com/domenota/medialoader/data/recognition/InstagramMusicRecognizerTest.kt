@@ -75,4 +75,39 @@ class InstagramMusicRecognizerTest {
         assertEquals(1, pcmLoads)
         assertEquals(1, acousticCalls)
     }
+    @Test fun genericInstagramOriginalAudioFallsBackToShazam() = runBlocking {
+        var pcmLoads = 0
+        var acousticCalls = 0
+        val acoustic = object : MusicRecognitionProvider {
+            override suspend fun recognize(pcm16Mono16k: ShortArray): MusicRecognitionResult? {
+                acousticCalls++
+                return MusicRecognitionResult(
+                    trackId = "99",
+                    title = "Real Song",
+                    artist = "Real Artist",
+                    source = RecognitionSource.SHAZAM_DIRECT,
+                )
+            }
+        }
+        val recognizer = InstagramMusicRecognizer(acoustic)
+        val item = MediaItem(
+            id = "music",
+            providerId = "instagram",
+            type = MediaType.AUDIO,
+            originalName = "user - Original audio.mp3",
+            downloadUrl = "https://video.xx.fbcdn.net/song.m4a",
+            audioArtist = "user",
+            audioTitle = "Original audio",
+        )
+
+        val result = recognizer.recognize(item) {
+            pcmLoads++
+            ShortArray(64_000)
+        }
+
+        assertEquals("99", result?.trackId)
+        assertEquals(1, pcmLoads)
+        assertEquals(1, acousticCalls)
+    }
+
 }
