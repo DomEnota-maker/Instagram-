@@ -60,6 +60,17 @@ fun DownloadEntity.toUi(): DownloadUiItem {
         kind = mediaType.kind(),
         groupId = groupId,
         providerId = providerId,
+        recognitionLabel = recognitionSource?.let { source ->
+            val origin = when (source) {
+                "SOURCE_METADATA" -> "Instagram"
+                "SHAZAM_DIRECT" -> "Shazam"
+                "SHAZAM_LOOP" -> "Shazam · loop"
+                else -> source
+            }
+            listOfNotNull(recognizedArtist, recognizedTitle).joinToString(" — ")
+                .takeIf { it.isNotBlank() }?.let { "$it · $origin" } ?: origin
+        },
+        recognized = recognitionSource != null,
     )
 }
 
