@@ -11,8 +11,10 @@ data class DownloadTask(
     val bytesDownloaded: Long = 0,
     val savedUri: String? = null,
     val errorMessage: String? = null,
-    /** Parallel transfers wait here before publishing into the destination folder. */
+    /** This batch predecessor must finish its publication attempt before this task becomes visible. */
     val publishAfter: CompletableDeferred<Unit>? = null,
+    /** Completed by DownloadQueue after this task has finished or been skipped/cancelled. */
+    val publishDone: CompletableDeferred<Unit>? = null,
 )
 
 enum class DownloadState { QUEUED, RUNNING, COMPLETED, FAILED, CANCELLED }
