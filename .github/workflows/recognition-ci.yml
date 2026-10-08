@@ -1,7 +1,9 @@
 name: Recognition CI
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - 'feature/1.4.8-instagram-shazam'
 
 permissions:
   contents: read
