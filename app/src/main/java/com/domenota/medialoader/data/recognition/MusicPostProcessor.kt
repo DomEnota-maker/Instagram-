@@ -43,6 +43,7 @@ class MusicPostProcessor(
             previewUrl = row.previewUrl,
             audioArtist = row.sourceAudioArtist,
             audioTitle = row.sourceAudioTitle,
+            audioArtworkUrl = row.sourceAudioArtworkUrl,
         )
         return process(id, item)
     }
