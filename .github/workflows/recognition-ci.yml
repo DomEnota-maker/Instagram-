@@ -26,6 +26,8 @@ jobs:
           gradle-version: '8.9'
       - name: Prepare one-time upstream ShazamIO recognition fixture
         run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
           curl --fail --location --retry 3 \
             https://raw.githubusercontent.com/shazamio/ShazamIO/master/examples/data/Gloria.ogg \
             --output /tmp/Gloria.ogg
