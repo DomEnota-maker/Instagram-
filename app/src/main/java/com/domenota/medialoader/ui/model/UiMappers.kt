@@ -71,6 +71,7 @@ fun DownloadEntity.toUi(): DownloadUiItem {
                 .takeIf { it.isNotBlank() }?.let { "$it · $origin" } ?: origin
         },
         recognized = recognitionSource != null,
+        sourcePageUrl = sourcePageUrl,
     )
 }
 
