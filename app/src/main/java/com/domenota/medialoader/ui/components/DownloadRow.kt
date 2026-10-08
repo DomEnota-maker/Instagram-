@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -160,8 +161,15 @@ fun DownloadRow(
         Row(Modifier.fillMaxWidth().padding(14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.size(82.dp).background(MaterialTheme.colorScheme.surfaceVariant,
-                RoundedCornerShape(14.dp))) {
+            Box(
+                Modifier
+                    .size(82.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(14.dp))
+                    .clickable(
+                        enabled = item.state == DownloadUiState.COMPLETED,
+                        onClick = onOpen,
+                    ),
+            ) {
                 DownloadThumbnail(item.savedUri, item.previewUrl, item.kind, Modifier.fillMaxSize())
             }
             Column(Modifier.weight(1f)) {
