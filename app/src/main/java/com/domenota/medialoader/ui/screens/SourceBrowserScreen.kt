@@ -243,7 +243,20 @@ private val browserScript = """
       source === 'youtube' ? 'ytm-rich-item-renderer,ytm-compact-video-renderer,ytm-video-with-context-renderer,ytm-item-section-renderer ytm-video-card-renderer,ytd-rich-grid-media,ytd-video-renderer' :
       source === 'vk' ? '[data-post-id],.VideoCard,.video_item,.video_card' :
       '.video-card,.video-card-container,article';
-    return anchor.closest(selector);
+    var card = anchor.closest(selector);
+    if (card || source !== 'instagram') return card;
+
+    // Instagram changes its feed markup frequently and some feed cards are no longer <article>.
+    // Walk upwards and choose the nearest reasonably-sized block that actually contains media.
+    var node = anchor.parentElement;
+    for (var depth = 0; node && node !== document.body && depth < 12; depth++, node = node.parentElement) {
+      var rect = node.getBoundingClientRect();
+      if (rect.width >= Math.min(240, innerWidth * .65) && rect.height >= 180 &&
+          rect.width <= innerWidth * 1.15 && node.querySelector('img,video')) {
+        return node;
+      }
+    }
+    return null;
   }
   var lastLocation = '';
   function report() {
@@ -299,37 +312,69 @@ private val browserScript = """
     document.body.style.overflow = 'auto';
     document.documentElement.style.overflow = 'auto';
   }
+  function installButton(card, url) {
+    var existing = card.querySelector('[data-medialoader-download]');
+    if (existing) {
+      // Instagram may recycle a feed card for another publication.
+      existing.dataset.url = url;
+      return false;
+    }
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.innerHTML = '<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 19h16"/></svg>';
+    b.setAttribute('data-medialoader-download', '1');
+    b.setAttribute('aria-label', 'Скачать этот материал');
+    b.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;position:relative;z-index:2;width:40px;height:40px;max-width:100%;flex:0 0 40px;margin:6px;border:0;border-radius:12px;background:#7638e8;color:white;font:600 26px system-ui,sans-serif;line-height:1;box-sizing:border-box;cursor:pointer';
+    b.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); send(this.dataset.url); });
+    b.dataset.url = url;
+    card.appendChild(b);
+    return true;
+  }
   function decorate() {
     report();
     recoverInstagramHome();
     var anchors = document.querySelectorAll('a[href]'), count = 0;
-    for (var i = 0; i < anchors.length && count < 80; i++) {
+    for (var i = 0; i < anchors.length && count < 160; i++) {
       var a = anchors[i];
       if (!valid(a.href)) continue;
       var card = cardFor(a);
-      if (!card || card.querySelector('[data-medialoader-download]')) continue;
-      var url = a.href;
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.innerHTML = '<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 19h16"/></svg>';
-      b.setAttribute('data-medialoader-download', '1');
-      b.setAttribute('aria-label', 'Скачать этот материал');
-      b.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;position:relative;z-index:2;width:40px;height:40px;max-width:100%;flex:0 0 40px;margin:6px;border:0;border-radius:12px;background:#7638e8;color:white;font:600 26px system-ui,sans-serif;line-height:1;box-sizing:border-box;cursor:pointer';
-      b.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); send(this.dataset.url); });
-      b.dataset.url = url;
-      card.appendChild(b); count++;
+      if (!card) continue;
+      installButton(card, a.href);
+      count++;
     }
   }
   var timer;
+  function scheduleDecorate(delay) {
+    clearTimeout(timer);
+    timer = setTimeout(decorate, delay || 180);
+  }
   new MutationObserver(function (records) {
-    if (records.every(function(r) { return r.addedNodes.length && Array.from(r.addedNodes).every(function(n) { return n.nodeType === 1 && n.hasAttribute('data-medialoader-download'); }); })) return;
-    clearTimeout(timer); timer = setTimeout(decorate, 300);
-  })
-    .observe(document.documentElement, {childList:true,subtree:true});
+    if (records.every(function(r) {
+      return r.type === 'childList' && r.addedNodes.length &&
+        Array.from(r.addedNodes).every(function(n) {
+          return n.nodeType === 1 && n.hasAttribute && n.hasAttribute('data-medialoader-download');
+        });
+    })) return;
+    scheduleDecorate(180);
+  }).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: source === 'instagram',
+    attributeFilter: source === 'instagram' ? ['href'] : undefined
+  });
   window.addEventListener('popstate', report);
   window.addEventListener('hashchange', report);
   decorate();
   if (source === 'instagram') {
+    // Feed virtualization can update content without adding new DOM nodes. Reconcile periodically
+    // so every loaded post gets a current button and recycled cards get the current permalink.
+    var feedReconcile = setInterval(function() {
+      if (!document.documentElement.contains(document.body)) {
+        clearInterval(feedReconcile);
+        return;
+      }
+      decorate();
+    }, 1200);
     var recovery = setInterval(function() {
       if (Date.now() > recoveryUntil || location.pathname !== '/') clearInterval(recovery);
       else recoverInstagramHome();
