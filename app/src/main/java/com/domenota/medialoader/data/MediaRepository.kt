@@ -7,6 +7,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.domenota.medialoader.core.database.DownloadEntity
 import com.domenota.medialoader.core.database.HistoryDatabase
+import com.domenota.medialoader.core.logging.AppLog
 import com.domenota.medialoader.core.model.MediaItem
 import com.domenota.medialoader.core.model.MediaType
 import com.domenota.medialoader.core.model.DownloadState
@@ -105,6 +106,8 @@ class MediaRepository private constructor(context: Context) {
     private val recognitionSettings = MusicRecognitionSettings(appContext)
     private val instagramMusicRecognizer = InstagramMusicRecognizer()
     private val recognitionAudioPreprocessor = RecognitionAudioPreprocessor(appContext)
+    private val recognitionSettings = RecognitionSettings(appContext)
+    private val musicMetadataWriter = MusicMetadataWriter(appContext, storage)
     private val recognitionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val musicPostProcessor = MusicPostProcessor(
         storage = storage,
@@ -183,6 +186,16 @@ class MediaRepository private constructor(context: Context) {
     fun setRenameRecognizedTracks(enabled: Boolean) { recognitionSettings.renameRecognized = enabled }
     suspend fun recognizeAudio(id: String) = musicPostProcessor.processExisting(id)
 
+    val musicRecognitionMode: MusicRecognitionMode get() = recognitionSettings.mode
+    val renameRecognizedMusic: Boolean get() = recognitionSettings.renameRecognized
+
+    fun setMusicRecognitionMode(mode: MusicRecognitionMode) {
+        recognitionSettings.mode = mode
+    }
+
+    fun setRenameRecognizedMusic(enabled: Boolean) {
+        recognitionSettings.renameRecognized = enabled
+    }
     fun isLoggedIn(): Boolean = sessions.isLoggedIn()
     suspend fun updateYtDlp(): String = youtubeDl.update()
     val hasYouTubeCookies: Boolean get() = youtubeDl.hasCookies
