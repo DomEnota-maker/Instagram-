@@ -91,6 +91,8 @@ fun DownloadsScreen(
     onHideDownload: (String) -> Unit,
     onRetryDownload: (String) -> Unit,
     onRenameDownload: (String, String) -> Unit,
+    recognitionEnabled: Boolean = false,
+    onRecognizeDownload: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val prefs = remember(context) { context.getSharedPreferences("ui", 0) }
@@ -252,7 +254,7 @@ fun DownloadsScreen(
                 },
             )
         } else {
-            DownloadRows(active, onOpenDownload, onCancelDownload, onShareDownload, onHideDownload, onRetryDownload, onRenameDownload)
+            DownloadRows(active, onOpenDownload, onCancelDownload, onShareDownload, onHideDownload, onRetryDownload, onRenameDownload, recognitionEnabled, onRecognizeDownload)
         }
 
         Spacer(Modifier.height(28.dp))
@@ -273,7 +275,7 @@ fun DownloadsScreen(
                 },
             )
         } else {
-            DownloadRows(history, onOpenDownload, onCancelDownload, onShareDownload, onHideDownload, onRetryDownload, onRenameDownload)
+            DownloadRows(history, onOpenDownload, onCancelDownload, onShareDownload, onHideDownload, onRetryDownload, onRenameDownload, recognitionEnabled, onRecognizeDownload)
         }
     }
 }
@@ -287,6 +289,8 @@ private fun DownloadRows(
     onHideDownload: (String) -> Unit,
     onRetryDownload: (String) -> Unit,
     onRenameDownload: (String, String) -> Unit,
+    recognitionEnabled: Boolean,
+    onRecognizeDownload: (String) -> Unit,
 ) {
     items.forEachIndexed { index, group ->
         if (group.size > 1) {
@@ -316,13 +320,13 @@ private fun DownloadRows(
                 Spacer(Modifier.height(8.dp))
                 group.forEachIndexed { childIndex, item ->
                     DownloadItemRow(item, onOpenDownload, onCancelDownload, onShareDownload,
-                        onHideDownload, onRetryDownload, onRenameDownload)
+                        onHideDownload, onRetryDownload, onRenameDownload, recognitionEnabled, onRecognizeDownload)
                     if (childIndex != group.lastIndex) Spacer(Modifier.height(8.dp))
                 }
             }
         } else {
             DownloadItemRow(group.single(), onOpenDownload, onCancelDownload, onShareDownload,
-                onHideDownload, onRetryDownload, onRenameDownload)
+                onHideDownload, onRetryDownload, onRenameDownload, recognitionEnabled, onRecognizeDownload)
         }
         if (index != items.lastIndex) Spacer(Modifier.height(10.dp))
     }
@@ -337,6 +341,8 @@ private fun DownloadItemRow(
     onHideDownload: (String) -> Unit,
     onRetryDownload: (String) -> Unit,
     onRenameDownload: (String, String) -> Unit,
+    recognitionEnabled: Boolean,
+    onRecognizeDownload: (String) -> Unit,
 ) {
     DownloadRow(
         item = item,
@@ -346,6 +352,8 @@ private fun DownloadItemRow(
         onHide = { onHideDownload(item.id) },
         onRetry = { onRetryDownload(item.id) },
         onRename = { onRenameDownload(item.id, it) },
+        recognitionEnabled = recognitionEnabled,
+        onRecognize = { onRecognizeDownload(item.id) },
     )
 }
 
