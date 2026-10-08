@@ -97,6 +97,10 @@ class MediaRepository private constructor(context: Context) {
                     db.execSQL("ALTER TABLE downloads ADD COLUMN recognitionSource TEXT")
                     db.execSQL("ALTER TABLE downloads ADD COLUMN recognitionArtworkUrl TEXT")
                 }
+            }, object : Migration(6, 7) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE downloads ADD COLUMN sourcePageUrl TEXT")
+                }
             }).build().downloadDao(),
     )
     private val resolver: MediaResolver = DefaultMediaResolver(
@@ -252,7 +256,7 @@ class MediaRepository private constructor(context: Context) {
                             else item.originalName,
                     ).let { it.copy(originalName = StorageNaming.normalizedMediaName(it.originalName, it.position)) }
                 }
-            } }.awaitAll()
+            } }.awaitAll().map { it.copy(sourcePageUrl = url) }
         }
     } catch (error: ProviderException) {
         // A session that still gets ACCESS_REQUIRED is expired: drop it so the UI offers sign-in again.
