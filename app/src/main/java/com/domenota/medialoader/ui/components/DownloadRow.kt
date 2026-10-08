@@ -1,5 +1,10 @@
 package com.domenota.medialoader.ui.components
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -33,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -65,8 +71,52 @@ fun DownloadRow(
     recognitionEnabled: Boolean = false,
     onRecognize: () -> Unit = {},
 ) {
+    val context = LocalContext.current
     var renameDialog by remember { mutableStateOf(false) }
+    var sourceDialog by remember { mutableStateOf(false) }
     var newName by remember(item.title) { mutableStateOf(StorageNaming.editableStem(item.title)) }
+
+    val sourceUrl = item.sourcePageUrl
+    if (sourceDialog && sourceUrl != null) AlertDialog(
+        onDismissRequest = { sourceDialog = false },
+        title = { Text("Исходник") },
+        text = {
+            OutlinedTextField(
+                value = sourceUrl,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Ссылка") },
+                minLines = 2,
+                maxLines = 4,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("Исходник", sourceUrl))
+                    sourceDialog = false
+                },
+            ) { Text("Копировать") }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(
+                    onClick = {
+                        runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse(sourceUrl))
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        }
+                        sourceDialog = false
+                    },
+                ) { Text("Открыть") }
+                TextButton(onClick = { sourceDialog = false }) { Text("Закрыть") }
+            }
+        },
+    )
     if (renameDialog) AlertDialog(
         onDismissRequest = { renameDialog = false },
         title = { Text("Переименовать файл") },
@@ -156,6 +206,15 @@ fun DownloadRow(
                     if (item.state == DownloadUiState.COMPLETED) {
                         DropdownMenuItem(text = { Text("Открыть") }, onClick = { menuExpanded = false; onOpen() })
                         DropdownMenuItem(text = { Text("Поделиться") }, onClick = { menuExpanded = false; onShare() })
+                        if (item.sourcePageUrl != null) {
+                            DropdownMenuItem(
+                                text = { Text("Исходник") },
+                                onClick = {
+                                    menuExpanded = false
+                                    sourceDialog = true
+                                },
+                            )
+                        }
                         DropdownMenuItem(text = { Text("Переименовать") }, onClick = {
                             menuExpanded = false
                             newName = StorageNaming.editableStem(item.title)
