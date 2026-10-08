@@ -7,6 +7,7 @@ The music-recognition fingerprinting implementation in
 is adapted from the algorithm in shazamio-core.
 
 Source: https://github.com/shazamio/shazamio-core
+Reference implementation version reviewed: 1.2.0
 
 MIT License
 
