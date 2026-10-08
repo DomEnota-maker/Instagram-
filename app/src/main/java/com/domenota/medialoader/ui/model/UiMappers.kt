@@ -55,7 +55,7 @@ fun DownloadEntity.toUi(): DownloadUiItem {
         state = uiState,
         progress = progress,
         dateLabel = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(createdAtEpochMillis)),
-        previewUrl = previewUrl,
+        previewUrl = recognitionArtworkUrl ?: previewUrl,
         savedUri = savedUri,
         kind = mediaType.kind(),
         groupId = groupId,
