@@ -241,6 +241,36 @@ class StorageManager(
         }
     }
 
+    /** Replaces the bytes of an already-saved file without changing its Uri or display name. */
+    suspend fun replace(savedUri: String, source: File): Boolean = withContext(Dispatchers.IO) {
+        val uri = Uri.parse(savedUri)
+        when (uri.scheme) {
+            "file" -> {
+                val target = File(uri.path ?: return@withContext false)
+                val temporary = File(target.parentFile, target.name + ".rewrite")
+                try {
+                    source.copyTo(temporary, overwrite = true)
+                    if (target.exists() && !target.delete()) return@withContext false
+                    if (!temporary.renameTo(target)) {
+                        temporary.copyTo(target, overwrite = true)
+                        temporary.delete()
+                    }
+                    target.isFile && target.length() > 0L
+                } catch (_: Exception) {
+                    temporary.delete()
+                    false
+                }
+            }
+            "content" -> runCatching {
+                val output = context.contentResolver.openOutputStream(uri, "w")
+                    ?: return@runCatching false
+                output.use { out -> source.inputStream().use { it.copyTo(out) } }
+                true
+            }.getOrDefault(false)
+            else -> false
+        }
+    }
+
     /** Rename an app-owned MediaStore entry from an older release; keep history unchanged on failure. */
     suspend fun renameOwnedDownload(savedUri: String, newName: String): Boolean = withContext(Dispatchers.IO) {
         if (Build.VERSION.SDK_INT < 29) return@withContext false
