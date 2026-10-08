@@ -9,14 +9,14 @@ import com.domenota.medialoader.core.recognition.RecognitionSource
 
 /**
  * Instagram-first policy:
- * source artist/title wins; acoustic recognition is only used when either value is missing.
+ * source artist/title wins; PCM decoding and acoustic recognition are lazy fallbacks.
  */
 class InstagramMusicRecognizer(
     private val acousticProvider: MusicRecognitionProvider = ShazamRecognitionProvider(),
 ) {
     suspend fun recognize(
         item: MediaItem,
-        pcm16Mono16k: ShortArray,
+        pcmLoader: suspend () -> ShortArray,
     ): MusicRecognitionResult? {
         if (item.providerId != InstagramProvider.ID || item.type != MediaType.AUDIO) return null
 
@@ -30,6 +30,6 @@ class InstagramMusicRecognizer(
             )
         }
 
-        return acousticProvider.recognize(pcm16Mono16k)
+        return acousticProvider.recognize(pcmLoader())
     }
 }
