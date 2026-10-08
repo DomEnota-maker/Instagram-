@@ -35,6 +35,7 @@ class DownloadQueue(
     private val clock: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
     private val onBatchChanged: suspend (String, List<DownloadEntity>) -> Unit = { _, _ -> },
+    private val onCompleted: (DownloadTask, DownloadResult) -> Unit = { _, _ -> },
 ) {
     private val pending = Channel<DownloadTask>(Channel.UNLIMITED)
     private val enqueueLock = Mutex()
@@ -205,6 +206,8 @@ class DownloadQueue(
                 )
             }
             AppLog.i("Download", "Completed · id=${task.id} · bytes=${result.sizeBytes ?: -1}")
+            runCatching { onCompleted(task, result) }
+                .onFailure { AppLog.w("Download", "Completion hook failed · id=${task.id}", it) }
         } catch (cancelled: CancellationException) {
             withContext(NonCancellable) { update(task.id) { it.copy(state = DownloadState.CANCELLED) } }
             AppLog.i("Download", "Cancelled · id=${task.id}")
