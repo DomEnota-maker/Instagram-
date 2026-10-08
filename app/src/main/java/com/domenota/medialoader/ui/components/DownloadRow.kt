@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import com.domenota.medialoader.core.storage.StorageNaming
 import com.domenota.medialoader.ui.model.DownloadUiItem
 import com.domenota.medialoader.ui.model.DownloadUiState
+import com.domenota.medialoader.ui.model.MediaKind
 import com.domenota.medialoader.ui.theme.AccentPurple
 import com.domenota.medialoader.ui.theme.Success
 
@@ -61,6 +62,8 @@ fun DownloadRow(
     onHide: () -> Unit = {},
     onRetry: () -> Unit = {},
     onRename: (String) -> Unit = {},
+    recognitionEnabled: Boolean = false,
+    onRecognize: () -> Unit = {},
 ) {
     var renameDialog by remember { mutableStateOf(false) }
     var newName by remember(item.title) { mutableStateOf(StorageNaming.editableStem(item.title)) }
@@ -128,6 +131,15 @@ fun DownloadRow(
                     color = if (item.state == DownloadUiState.FAILED) MaterialTheme.colorScheme.error
                         else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2, overflow = TextOverflow.Ellipsis)
+                item.recognitionLabel?.let { recognition ->
+                    Text(
+                        recognition,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 item.dateLabel?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -149,6 +161,12 @@ fun DownloadRow(
                             newName = StorageNaming.editableStem(item.title)
                             renameDialog = true
                         })
+                        if (recognitionEnabled && item.kind == MediaKind.AUDIO) {
+                            DropdownMenuItem(
+                                text = { Text(if (item.recognized) "Распознать снова" else "Найти название трека") },
+                                onClick = { menuExpanded = false; onRecognize() },
+                            )
+                        }
                         DropdownMenuItem(text = { Text("Удалить") }, onClick = { menuExpanded = false; onHide() })
                     } else if (item.state == DownloadUiState.DOWNLOADING || item.state == DownloadUiState.QUEUED) {
                         DropdownMenuItem(text = { Text("Отмена") }, onClick = { menuExpanded = false; onCancel() })
