@@ -100,8 +100,10 @@ class InstagramProvider(
         private fun musicItem(product: JSONObject, code: String, publicationPreview: String?): MediaItem? {
             val asset = findMusicAsset(product, 0) ?: return null
             val url = asset.optString("progressive_download_url").takeIf(::safeMediaUrl) ?: return null
-            val artist = StorageNaming.sanitizeStem(asset.optString("display_artist").takeIf { it.isNotBlank() })
-            val title = StorageNaming.sanitizeStem(asset.optString("title").takeIf { it.isNotBlank() })
+            val rawArtist = asset.optString("display_artist").trim().takeIf { it.isNotBlank() }
+            val rawTitle = asset.optString("title").trim().takeIf { it.isNotBlank() }
+            val artist = StorageNaming.sanitizeStem(rawArtist)
+            val title = StorageNaming.sanitizeStem(rawTitle)
             val stem = StorageNaming.sanitizeStem(
                 when {
                     artist != null && title != null -> "$artist - $title"
@@ -117,6 +119,8 @@ class InstagramProvider(
                 originalName = StorageNaming.mediaFileName(stem, null, "mp3"),
                 downloadUrl = url,
                 previewUrl = publicationPreview,
+                audioArtist = rawArtist,
+                audioTitle = rawTitle,
                 sourceGroupId = code,
             )
         }
