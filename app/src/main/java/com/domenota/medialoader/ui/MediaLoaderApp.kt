@@ -209,6 +209,10 @@ fun MediaLoaderApp(
 
     LaunchedEffect(sharedText) {
         if (!sharedText.isNullOrBlank()) {
+            // ACTION_SEND is explicit user intent and always wins over clipboard auto-import.
+            // Mark the launch clipboard check as already handled so an older clipboard URL
+            // cannot overwrite the newly shared URL when the activity resumes.
+            checkedClipboardAtLaunch = true
             pendingUrl = extractFirstUrl(sharedText) ?: sharedText
             lastHandledLink = pendingUrl
             navigateTo(AppDestination.Home.route)
