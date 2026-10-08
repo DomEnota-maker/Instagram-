@@ -55,7 +55,8 @@ fun DownloadEntity.toUi(): DownloadUiItem {
         state = uiState,
         progress = progress,
         dateLabel = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(createdAtEpochMillis)),
-        previewUrl = recognitionArtworkUrl ?: previewUrl,
+        // Keep the publication thumbnail stable. Shazam artwork is only a fallback.
+        previewUrl = previewUrl ?: recognitionArtworkUrl,
         savedUri = savedUri,
         kind = mediaType.kind(),
         groupId = groupId,
