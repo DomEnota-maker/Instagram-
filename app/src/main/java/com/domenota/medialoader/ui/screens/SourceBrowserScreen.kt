@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.domenota.medialoader.core.logging.AppLog
 import com.domenota.medialoader.core.provider.InstagramLinkParser
 import com.domenota.medialoader.core.provider.RutubeLinkParser
 import com.domenota.medialoader.core.provider.VkLinkParser
@@ -128,6 +129,9 @@ fun SourceBrowserScreen(source: BrowserSource, onBack: () -> Unit, onDownload: (
             addJavascriptInterface(object {
                 @JavascriptInterface fun location(url: String) {
                     view.post { if (source.isSite(url)) pageUrl = url }
+                }
+                @JavascriptInterface fun debug(message: String) {
+                    AppLog.i("Browser", "${source.id} · $message")
                 }
                 @JavascriptInterface fun pick(link: String) {
                     view.post {
@@ -231,7 +235,7 @@ private val browserScript = """
     try {
       var u = new URL(url, location.href), p = u.pathname;
       if (u.protocol !== 'https:') return false;
-      if (source === 'instagram') return /(^|\.)instagram\.com$/.test(u.hostname) && (/^\/(p|reel|tv)\/[A-Za-z0-9_-]{5,64}/.test(p) || /^\/stories\/[^/]+\/\d{5,25}/.test(p));
+      if (source === 'instagram') return /(^|\.)instagram\.com$/.test(u.hostname) && (/^\/(p|reel|reels|tv)\/[A-Za-z0-9_-]{5,64}/.test(p) || /^\/stories\/[^/]+\/\d{5,25}/.test(p));
       if (source === 'youtube') return /(^|\.)youtube\.com$/.test(u.hostname) && (/^\/(shorts|live)\/[A-Za-z0-9_-]{11}/.test(p) || (p === '/watch' && /^[A-Za-z0-9_-]{11}$/.test(u.searchParams.get('v') || '')));
       if (source === 'vk') return /(^|\.)(vk\.com|vk\.ru|vkvideo\.ru)$/.test(u.hostname) && (/^\/(video|clip)/.test(p) || /(^|[?&])z=(video|clip)/.test(u.search));
       return /(^|\.)rutube\.ru$/.test(u.hostname) && (/^\/(live\/)?video\/(private\/)?[0-9a-fA-F]{32}\/?.*$/.test(p) || /^\/(play\/)?embed\/[0-9A-Za-z]+\/?$/.test(p));
@@ -400,25 +404,36 @@ private val browserScript = """
     card.appendChild(b);
     return true;
   }
+  var lastInstagramDebugAt = 0;
   function decorate() {
     report();
     recoverInstagramHome();
     if (source === 'instagram') {
       document.querySelectorAll('[data-medialoader-overlay="1"]').forEach(function(b) { b.__mediaLoaderSeen = false; });
     }
-    var anchors = document.querySelectorAll('a[href]'), count = 0, seenUrls = {};
+    var anchors = document.querySelectorAll('a[href]'), count = 0, validCount = 0, cardCount = 0, seenUrls = {};
     for (var i = 0; i < anchors.length && count < 240; i++) {
       var a = anchors[i];
       if (!valid(a.href)) continue;
+      validCount++;
       var url = new URL(a.href, location.href).href;
       if (seenUrls[url]) continue;
       var card = cardFor(a);
       if (!card) continue;
+      cardCount++;
       seenUrls[url] = true;
       installButton(card, url);
       count++;
     }
-    if (source === 'instagram') reconcileInstagramOverlays();
+    if (source === 'instagram') {
+      reconcileInstagramOverlays();
+      if (Date.now() - lastInstagramDebugAt > 5000) {
+        lastInstagramDebugAt = Date.now();
+        var overlays = document.querySelectorAll('[data-medialoader-overlay="1"]').length;
+        MediaLoaderBridge.debug('anchors=' + anchors.length + ' valid=' + validCount +
+          ' cards=' + cardCount + ' overlays=' + overlays + ' path=' + location.pathname);
+      }
+    }
   }
   var timer;
   function scheduleDecorate(delay) {
@@ -429,7 +444,8 @@ private val browserScript = """
     if (records.every(function(r) {
       return r.type === 'childList' && r.addedNodes.length &&
         Array.from(r.addedNodes).every(function(n) {
-          return n.nodeType === 1 && n.hasAttribute && n.hasAttribute('data-medialoader-download');
+          return n.nodeType === 1 && n.hasAttribute &&
+            (n.hasAttribute('data-medialoader-download') || n.hasAttribute('data-medialoader-overlay'));
         });
     })) return;
     scheduleDecorate(180);
