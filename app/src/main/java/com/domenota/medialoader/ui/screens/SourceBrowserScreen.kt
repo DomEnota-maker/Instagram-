@@ -133,9 +133,6 @@ fun SourceBrowserScreen(source: BrowserSource, onBack: () -> Unit, onDownload: (
                 @JavascriptInterface fun debug(message: String) {
                     AppLog.i("Browser", "${source.id} · $message")
                 }
-                @JavascriptInterface fun debug(message: String) {
-                    AppLog.i("Browser", "${source.id} · $message")
-                }
                 @JavascriptInterface fun pick(link: String) {
                     view.post {
                         if (!source.isSite(view.url)) return@post
