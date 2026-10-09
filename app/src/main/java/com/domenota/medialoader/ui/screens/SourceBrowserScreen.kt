@@ -312,16 +312,86 @@ private val browserScript = """
     document.body.style.overflow = 'auto';
     document.documentElement.style.overflow = 'auto';
   }
+  function buttonMarkup() {
+    return '<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 19h16"/></svg>';
+  }
+  function largestMedia(card) {
+    var candidates = Array.from(card.querySelectorAll('video,img')).filter(function(el) {
+      var r = el.getBoundingClientRect(), style = getComputedStyle(el);
+      return r.width >= 180 && r.height >= 160 &&
+        style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) > 0;
+    });
+    candidates.sort(function(a, b) {
+      var ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
+      return (br.width * br.height) - (ar.width * ar.height);
+    });
+    return candidates[0] || null;
+  }
+  function positionInstagramButton(button) {
+    var media = button.__mediaLoaderMedia;
+    if (!media || !document.documentElement.contains(media)) {
+      button.style.display = 'none';
+      return false;
+    }
+    var r = media.getBoundingClientRect();
+    var visible = r.width >= 180 && r.height >= 160 &&
+      r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth;
+    if (!visible) {
+      button.style.display = 'none';
+      return true;
+    }
+    var left = Math.min(innerWidth - 48, Math.max(8, r.right - 48));
+    var top = Math.max(8, Math.min(innerHeight - 48, r.top + 8));
+    button.style.left = left + 'px';
+    button.style.top = top + 'px';
+    button.style.display = 'inline-flex';
+    return true;
+  }
+  function installInstagramOverlay(card, url) {
+    var media = largestMedia(card);
+    if (!media) return null;
+    var existing = Array.from(document.querySelectorAll('[data-medialoader-overlay="1"]')).find(function(el) {
+      return el.dataset.url === url;
+    });
+    var b = existing || document.createElement('button');
+    if (!existing) {
+      b.type = 'button';
+      b.innerHTML = buttonMarkup();
+      b.setAttribute('data-medialoader-overlay', '1');
+      b.setAttribute('aria-label', 'Скачать этот материал');
+      b.style.cssText = 'position:fixed;z-index:2147483646;width:40px;height:40px;padding:0;border:0;border-radius:12px;background:#7638e8;color:white;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.35);cursor:pointer;-webkit-tap-highlight-color:transparent';
+      b.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        send(this.dataset.url);
+      }, true);
+      document.body.appendChild(b);
+    }
+    b.dataset.url = url;
+    b.__mediaLoaderCard = card;
+    b.__mediaLoaderMedia = media;
+    b.__mediaLoaderSeen = true;
+    positionInstagramButton(b);
+    return b;
+  }
+  function reconcileInstagramOverlays() {
+    var overlays = Array.from(document.querySelectorAll('[data-medialoader-overlay="1"]'));
+    overlays.forEach(function(b) {
+      if (!b.__mediaLoaderSeen || !positionInstagramButton(b)) b.remove();
+      else b.__mediaLoaderSeen = false;
+    });
+  }
   function installButton(card, url) {
+    if (source === 'instagram') return !!installInstagramOverlay(card, url);
     var existing = card.querySelector('[data-medialoader-download]');
     if (existing) {
-      // Instagram may recycle a feed card for another publication.
       existing.dataset.url = url;
       return false;
     }
     var b = document.createElement('button');
     b.type = 'button';
-    b.innerHTML = '<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 19h16"/></svg>';
+    b.innerHTML = buttonMarkup();
     b.setAttribute('data-medialoader-download', '1');
     b.setAttribute('aria-label', 'Скачать этот материал');
     b.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;position:relative;z-index:2;width:40px;height:40px;max-width:100%;flex:0 0 40px;margin:6px;border:0;border-radius:12px;background:#7638e8;color:white;font:600 26px system-ui,sans-serif;line-height:1;box-sizing:border-box;cursor:pointer';
@@ -333,15 +403,22 @@ private val browserScript = """
   function decorate() {
     report();
     recoverInstagramHome();
-    var anchors = document.querySelectorAll('a[href]'), count = 0;
-    for (var i = 0; i < anchors.length && count < 160; i++) {
+    if (source === 'instagram') {
+      document.querySelectorAll('[data-medialoader-overlay="1"]').forEach(function(b) { b.__mediaLoaderSeen = false; });
+    }
+    var anchors = document.querySelectorAll('a[href]'), count = 0, seenUrls = {};
+    for (var i = 0; i < anchors.length && count < 240; i++) {
       var a = anchors[i];
       if (!valid(a.href)) continue;
+      var url = new URL(a.href, location.href).href;
+      if (seenUrls[url]) continue;
       var card = cardFor(a);
       if (!card) continue;
-      installButton(card, a.href);
+      seenUrls[url] = true;
+      installButton(card, url);
       count++;
     }
+    if (source === 'instagram') reconcileInstagramOverlays();
   }
   var timer;
   function scheduleDecorate(delay) {
@@ -368,13 +445,25 @@ private val browserScript = """
   if (source === 'instagram') {
     // Feed virtualization can update content without adding new DOM nodes. Reconcile periodically
     // so every loaded post gets a current button and recycled cards get the current permalink.
+    var overlayFrame = 0;
+    function scheduleOverlayPosition() {
+      if (overlayFrame) return;
+      overlayFrame = requestAnimationFrame(function() {
+        overlayFrame = 0;
+        document.querySelectorAll('[data-medialoader-overlay="1"]').forEach(function(b) {
+          positionInstagramButton(b);
+        });
+      });
+    }
+    window.addEventListener('scroll', scheduleOverlayPosition, true);
+    window.addEventListener('resize', scheduleOverlayPosition);
     var feedReconcile = setInterval(function() {
       if (!document.documentElement.contains(document.body)) {
         clearInterval(feedReconcile);
         return;
       }
       decorate();
-    }, 1200);
+    }, 700);
     var recovery = setInterval(function() {
       if (Date.now() > recoveryUntil || location.pathname !== '/') clearInterval(recovery);
       else recoverInstagramHome();
