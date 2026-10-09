@@ -334,26 +334,66 @@ private val browserScript = """
   }
   function instagramUrlFromAttributes(node) {
     if (!node || !node.getAttributeNames) return null;
-    var direct = ['href','data-href','data-url','data-link','data-permalink'];
-    for (var i = 0; i < direct.length; i++) {
-      var value = node.getAttribute(direct[i]);
-      var found = normalizedInstagramUrl(value);
+    var names;
+    try { names = node.getAttributeNames(); } catch (_) { names = []; }
+    for (var i = 0; i < names.length; i++) {
+      var raw = null;
+      try { raw = node.getAttribute(names[i]); } catch (_) {}
+      var found = normalizedInstagramUrl(raw);
       if (found) return found;
-    }
-    var names = node.getAttributeNames();
-    for (var j = 0; j < names.length; j++) {
-      var raw = node.getAttribute(names[j]);
-      var url = normalizedInstagramUrl(raw);
-      if (url) return url;
     }
     return null;
   }
-  function instagramUrlFromReact(node) {
-    if (!node) return null;
-    var keys;
-    try {
-      keys = Object.keys(node).filter(function(k) {
-        return k.indexOf('__reactProps  function positionInstagramButton(button) {
+  function instagramPermalink(card) {
+    if (!card) return null;
+    var links = card.querySelectorAll('a[href]');
+    for (var i = 0; i < links.length; i++) {
+      if (valid(links[i].href)) return new URL(links[i].href, location.href).href;
+    }
+    var nodes = card.querySelectorAll('*');
+    for (var j = 0; j < nodes.length && j < 240; j++) {
+      var fromAttrs = instagramUrlFromAttributes(nodes[j]);
+      if (fromAttrs) return fromAttrs;
+    }
+    var selfAttrs = instagramUrlFromAttributes(card);
+    if (selfAttrs) return selfAttrs;
+    var html = '';
+    try { html = card.outerHTML.slice(0, 420000); } catch (_) {}
+    return normalizedInstagramUrl(html);
+  }
+  function instagramCardForMedia(media) {
+    var article = media.closest('article');
+    if (article) return article;
+    var node = media.parentElement, best = null, mediaRect = media.getBoundingClientRect();
+    for (var depth = 0; node && node !== document.body && depth < 16; depth++, node = node.parentElement) {
+      var rect = node.getBoundingClientRect();
+      if (rect.width < Math.min(230, innerWidth * .62) || rect.width > innerWidth * 1.18) continue;
+      if (rect.height < mediaRect.height || rect.height > Math.max(innerHeight * 2.4, mediaRect.height + 950)) continue;
+      if (!best) best = node;
+      var directUrl = instagramPermalink(node);
+      if (directUrl) return node;
+      var controls = node.querySelectorAll('button,[role="button"],time,[role="link"]').length;
+      if (controls >= 3 && rect.height >= mediaRect.height + 60) best = node;
+    }
+    return best;
+  }
+  function nearestInstagramPermalink(media, anchors) {
+    var mr = media.getBoundingClientRect(), bestUrl = null, bestScore = Infinity;
+    for (var i = 0; i < anchors.length; i++) {
+      var a = anchors[i], ar = a.getBoundingClientRect();
+      var vertical = ar.bottom < mr.top ? mr.top - ar.bottom : (ar.top > mr.bottom ? ar.top - mr.bottom : 0);
+      if (vertical > 520) continue;
+      var horizontal = ar.right < mr.left ? mr.left - ar.right : (ar.left > mr.right ? ar.left - mr.right : 0);
+      if (horizontal > innerWidth * .45) continue;
+      var score = vertical * 4 + horizontal + Math.abs((ar.left + ar.right) - (mr.left + mr.right)) * .15;
+      if (score < bestScore) {
+        bestScore = score;
+        bestUrl = new URL(a.href, location.href).href;
+      }
+    }
+    return bestUrl;
+  }
+  function positionInstagramButton(button) {
     var media = button.__mediaLoaderMedia;
     if (!media || !document.documentElement.contains(media)) {
       button.style.display = 'none';
@@ -373,8 +413,8 @@ private val browserScript = """
     button.style.display = 'inline-flex';
     return true;
   }
-  function installInstagramOverlay(card, url) {
-    var media = largestMedia(card);
+  function installInstagramOverlay(card, url, preferredMedia) {
+    var media = preferredMedia || largestMedia(card);
     if (!media) return null;
     var existing = Array.from(document.querySelectorAll('[data-medialoader-overlay="1"]')).find(function(el) {
       return el.dataset.url === url;
@@ -441,13 +481,13 @@ private val browserScript = """
     var installed = 0, unresolved = 0;
     for (var j = 0; j < cards.length; j++) {
       var pair = cards[j], url = instagramPermalink(pair.card);
-      if (!url) url = instagramUrlFromReact(pair.media);
+      if (!url) url = instagramUrlFromAttributes(pair.media);
       if (!url) url = nearestInstagramPermalink(pair.media, validAnchors);
       if (!url) {
         unresolved++;
         continue;
       }
-      installInstagramOverlay(pair.card, url);
+      installInstagramOverlay(pair.card, url, pair.media);
       installed++;
     }
     // Keep anchor-first handling as a fallback for unusual layouts, profile grids and stories.
