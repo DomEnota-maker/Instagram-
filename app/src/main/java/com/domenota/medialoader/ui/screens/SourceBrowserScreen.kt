@@ -312,12 +312,71 @@ private val browserScript = """
     document.body.style.overflow = 'auto';
     document.documentElement.style.overflow = 'auto';
   }
-  function installButton(card, url) {
+  function instagramOverlayRoot() {
+    if (source !== 'instagram') return null;
+    var root = document.getElementById('medialoader-feed-overlay');
+    if (!root) {
+      root = document.createElement('div');
+      root.id = 'medialoader-feed-overlay';
+      root.setAttribute('data-medialoader-overlay', '1');
+      root.style.cssText = 'position:fixed;inset:0;z-index:2147483646;pointer-events:none;overflow:visible';
+      document.documentElement.appendChild(root);
+    }
+    return root;
+  }
+  function largestVisibleMedia(card) {
+    if (!card) return null;
+    var best = null, bestArea = 0;
+    Array.from(card.querySelectorAll('img,video')).forEach(function(el) {
+      var r = el.getBoundingClientRect();
+      var visibleW = Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0));
+      var visibleH = Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0));
+      var area = visibleW * visibleH;
+      if (r.width >= 120 && r.height >= 120 && area > bestArea) {
+        best = el;
+        bestArea = area;
+      }
+    });
+    return best;
+  }
+  function installInstagramOverlay(url, card, seen) {
+    var root = instagramOverlayRoot();
+    if (!root || !card) return;
+    var media = largestVisibleMedia(card);
+    if (!media) return;
+    var r = media.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) return;
+
+    var key = 'ml-' + btoa(unescape(encodeURIComponent(url))).replace(/[^A-Za-z0-9]/g, '').slice(-48);
+    seen[key] = true;
+    var b = root.querySelector('[data-medialoader-key="' + key + '"]');
+    if (!b) {
+      b = document.createElement('button');
+      b.type = 'button';
+      b.innerHTML = '<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 19h16"/></svg>';
+      b.setAttribute('data-medialoader-download', '1');
+      b.setAttribute('data-medialoader-key', key);
+      b.setAttribute('aria-label', 'Скачать этот материал');
+      b.style.cssText = 'position:absolute;width:40px;height:40px;border:0;border-radius:12px;background:#7638e8;color:white;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 12px rgba(0,0,0,.35);pointer-events:auto;cursor:pointer';
+      b.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        send(this.dataset.url);
+      });
+      root.appendChild(b);
+    }
+    b.dataset.url = url;
+    var left = Math.max(8, Math.min(innerWidth - 48, r.left + 8));
+    var top = Math.max(8, Math.min(innerHeight - 48, r.bottom - 48));
+    b.style.left = left + 'px';
+    b.style.top = top + 'px';
+    b.style.display = 'flex';
+  }
+  function installInlineButton(card, url) {
     var existing = card.querySelector('[data-medialoader-download]');
     if (existing) {
-      // Instagram may recycle a feed card for another publication.
       existing.dataset.url = url;
-      return false;
+      return;
     }
     var b = document.createElement('button');
     b.type = 'button';
@@ -328,19 +387,25 @@ private val browserScript = """
     b.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); send(this.dataset.url); });
     b.dataset.url = url;
     card.appendChild(b);
-    return true;
   }
   function decorate() {
     report();
     recoverInstagramHome();
-    var anchors = document.querySelectorAll('a[href]'), count = 0;
-    for (var i = 0; i < anchors.length && count < 160; i++) {
+    var anchors = document.querySelectorAll('a[href]'), count = 0, seen = {};
+    for (var i = 0; i < anchors.length && count < 240; i++) {
       var a = anchors[i];
       if (!valid(a.href)) continue;
       var card = cardFor(a);
       if (!card) continue;
-      installButton(card, a.href);
+      if (source === 'instagram') installInstagramOverlay(new URL(a.href, location.href).href, card, seen);
+      else installInlineButton(card, a.href);
       count++;
+    }
+    if (source === 'instagram') {
+      var root = instagramOverlayRoot();
+      if (root) Array.from(root.querySelectorAll('[data-medialoader-key]')).forEach(function(button) {
+        if (!seen[button.getAttribute('data-medialoader-key')]) button.remove();
+      });
     }
   }
   var timer;
@@ -362,8 +427,28 @@ private val browserScript = """
     attributes: source === 'instagram',
     attributeFilter: source === 'instagram' ? ['href'] : undefined
   });
-  window.addEventListener('popstate', report);
-  window.addEventListener('hashchange', report);
+  var nativePushState = history.pushState;
+  history.pushState = function() {
+    var result = nativePushState.apply(this, arguments);
+    report();
+    scheduleDecorate(60);
+    return result;
+  };
+  var nativeReplaceState = history.replaceState;
+  history.replaceState = function() {
+    var result = nativeReplaceState.apply(this, arguments);
+    report();
+    scheduleDecorate(60);
+    return result;
+  };
+  window.addEventListener('popstate', function() { report(); scheduleDecorate(60); });
+  window.addEventListener('hashchange', function() { report(); scheduleDecorate(60); });
+  window.addEventListener('scroll', function() {
+    if (source === 'instagram') scheduleDecorate(16);
+  }, {passive:true});
+  window.addEventListener('resize', function() {
+    if (source === 'instagram') scheduleDecorate(50);
+  });
   decorate();
   if (source === 'instagram') {
     // Feed virtualization can update content without adding new DOM nodes. Reconcile periodically
