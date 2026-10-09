@@ -243,24 +243,11 @@ private val browserScript = """
   }
   function send(url) { if (valid(url)) MediaLoaderBridge.pick(new URL(url, location.href).href); }
   function cardFor(anchor) {
-    var selector = source === 'instagram' ? 'article' :
-      source === 'youtube' ? 'ytm-rich-item-renderer,ytm-compact-video-renderer,ytm-video-with-context-renderer,ytm-item-section-renderer ytm-video-card-renderer,ytd-rich-grid-media,ytd-video-renderer' :
+    var selector = source === 'youtube' ? 'ytm-rich-item-renderer,ytm-compact-video-renderer,ytm-video-with-context-renderer,ytm-item-section-renderer ytm-video-card-renderer,ytd-rich-grid-media,ytd-video-renderer' :
       source === 'vk' ? '[data-post-id],.VideoCard,.video_item,.video_card' :
-      '.video-card,.video-card-container,article';
-    var card = anchor.closest(selector);
-    if (card || source !== 'instagram') return card;
-
-    // Instagram changes its feed markup frequently and some feed cards are no longer <article>.
-    // Walk upwards and choose the nearest reasonably-sized block that actually contains media.
-    var node = anchor.parentElement;
-    for (var depth = 0; node && node !== document.body && depth < 12; depth++, node = node.parentElement) {
-      var rect = node.getBoundingClientRect();
-      if (rect.width >= Math.min(240, innerWidth * .65) && rect.height >= 180 &&
-          rect.width <= innerWidth * 1.15 && node.querySelector('img,video')) {
-        return node;
-      }
-    }
-    return null;
+      source === 'rutube' ? '.video-card,.video-card-container,article' :
+      'article';
+    return anchor.closest(selector);
   }
   var lastLocation = '';
   function report() {
@@ -319,17 +306,486 @@ private val browserScript = """
   function buttonMarkup() {
     return '<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 19h16"/></svg>';
   }
-  function largestMedia(card) {
-    var candidates = Array.from(card.querySelectorAll('video,img')).filter(function(el) {
+  function mediaCandidates(root) {
+    return Array.from((root || document).querySelectorAll('video,img')).filter(function(el) {
       var r = el.getBoundingClientRect(), style = getComputedStyle(el);
-      return r.width >= 180 && r.height >= 160 &&
+      return r.width >= Math.min(180, innerWidth * .48) && r.height >= 160 &&
+        r.right > 0 && r.left < innerWidth &&
         style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) > 0;
     });
+  }
+  function largestMedia(card) {
+    var candidates = mediaCandidates(card);
     candidates.sort(function(a, b) {
       var ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
       return (br.width * br.height) - (ar.width * ar.height);
     });
     return candidates[0] || null;
+  }
+  function normalizedInstagramUrl(value) {
+    if (!value || typeof value !== 'string') return null;
+    var text = value.replace(/\\u002[fF]/g, '/').replace(/\\\//g, '/').replace(/&amp;/g, '&');
+    var match = text.match(/(?:https:\/\/(?:www\.)?instagram\.com)?\/(?:p|reel|tv)\/[A-Za-z0-9_-]{5,64}\/?/i);
+    if (!match) return null;
+    try {
+      var url = new URL(match[0], 'https://www.instagram.com/').href;
+      return valid(url) ? url : null;
+    } catch (_) { return null; }
+  }
+  function instagramUrlFromAttributes(node) {
+    if (!node || !node.getAttributeNames) return null;
+    var direct = ['href','data-href','data-url','data-link','data-permalink'];
+    for (var i = 0; i < direct.length; i++) {
+      var value = node.getAttribute(direct[i]);
+      var found = normalizedInstagramUrl(value);
+      if (found) return found;
+    }
+    var names = node.getAttributeNames();
+    for (var j = 0; j < names.length; j++) {
+      var raw = node.getAttribute(names[j]);
+      var url = normalizedInstagramUrl(raw);
+      if (url) return url;
+    }
+    return null;
+  }
+  function instagramUrlFromReact(node) {
+    if (!node) return null;
+    var keys;
+    try {
+      keys = Object.keys(node).filter(function(k) {
+        return k.indexOf('__reactProps  function positionInstagramButton(button) {
+    var media = button.__mediaLoaderMedia;
+    if (!media || !document.documentElement.contains(media)) {
+      button.style.display = 'none';
+      return false;
+    }
+    var r = media.getBoundingClientRect();
+    var visible = r.width >= 180 && r.height >= 160 &&
+      r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth;
+    if (!visible) {
+      button.style.display = 'none';
+      return true;
+    }
+    var left = Math.min(innerWidth - 48, Math.max(8, r.right - 48));
+    var top = Math.max(8, Math.min(innerHeight - 48, r.top + 8));
+    button.style.left = left + 'px';
+    button.style.top = top + 'px';
+    button.style.display = 'inline-flex';
+    return true;
+  }
+  function installInstagramOverlay(card, url) {
+    var media = largestMedia(card);
+    if (!media) return null;
+    var existing = Array.from(document.querySelectorAll('[data-medialoader-overlay="1"]')).find(function(el) {
+      return el.dataset.url === url;
+    });
+    var b = existing || document.createElement('button');
+    if (!existing) {
+      b.type = 'button';
+      b.innerHTML = buttonMarkup();
+      b.setAttribute('data-medialoader-overlay', '1');
+      b.setAttribute('aria-label', 'Скачать этот материал');
+      b.style.cssText = 'position:fixed;z-index:2147483646;width:40px;height:40px;padding:0;border:0;border-radius:12px;background:#7638e8;color:white;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.35);cursor:pointer;-webkit-tap-highlight-color:transparent';
+      b.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        send(this.dataset.url);
+      }, true);
+      document.body.appendChild(b);
+    }
+    b.dataset.url = url;
+    b.__mediaLoaderCard = card;
+    b.__mediaLoaderMedia = media;
+    b.__mediaLoaderSeen = true;
+    positionInstagramButton(b);
+    return b;
+  }
+  function reconcileInstagramOverlays() {
+    var overlays = Array.from(document.querySelectorAll('[data-medialoader-overlay="1"]'));
+    overlays.forEach(function(b) {
+      if (!b.__mediaLoaderSeen || !positionInstagramButton(b)) b.remove();
+      else b.__mediaLoaderSeen = false;
+    });
+  }
+  function installButton(card, url) {
+    if (source === 'instagram') return !!installInstagramOverlay(card, url);
+    var existing = card.querySelector('[data-medialoader-download]');
+    if (existing) {
+      existing.dataset.url = url;
+      return false;
+    }
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.innerHTML = buttonMarkup();
+    b.setAttribute('data-medialoader-download', '1');
+    b.setAttribute('aria-label', 'Скачать этот материал');
+    b.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;position:relative;z-index:2;width:40px;height:40px;max-width:100%;flex:0 0 40px;margin:6px;border:0;border-radius:12px;background:#7638e8;color:white;font:600 26px system-ui,sans-serif;line-height:1;box-sizing:border-box;cursor:pointer';
+    b.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); send(this.dataset.url); });
+    b.dataset.url = url;
+    card.appendChild(b);
+    return true;
+  }
+  var lastInstagramDebugAt = 0;
+  function decorateInstagram() {
+    document.querySelectorAll('[data-medialoader-overlay="1"]').forEach(function(b) { b.__mediaLoaderSeen = false; });
+    var allAnchors = Array.from(document.querySelectorAll('a[href]'));
+    var validAnchors = allAnchors.filter(function(a) { return valid(a.href); });
+    var medias = mediaCandidates(document), cards = [], seenCards = [];
+    for (var i = 0; i < medias.length && cards.length < 80; i++) {
+      var card = instagramCardForMedia(medias[i]);
+      if (!card || seenCards.indexOf(card) >= 0) continue;
+      seenCards.push(card);
+      cards.push({card: card, media: medias[i]});
+    }
+    var installed = 0, unresolved = 0;
+    for (var j = 0; j < cards.length; j++) {
+      var pair = cards[j], url = instagramPermalink(pair.card);
+      if (!url) url = instagramUrlFromReact(pair.media);
+      if (!url) url = nearestInstagramPermalink(pair.media, validAnchors);
+      if (!url) {
+        unresolved++;
+        continue;
+      }
+      installInstagramOverlay(pair.card, url);
+      installed++;
+    }
+    // Keep anchor-first handling as a fallback for unusual layouts, profile grids and stories.
+    for (var k = 0; k < validAnchors.length && installed < 120; k++) {
+      var anchor = validAnchors[k], anchorCard = anchor.closest('article');
+      if (!anchorCard) {
+        var nearbyMedia = mediaCandidates(anchor.parentElement || document)[0];
+        if (nearbyMedia) anchorCard = instagramCardForMedia(nearbyMedia);
+      }
+      if (!anchorCard) continue;
+      installInstagramOverlay(anchorCard, new URL(anchor.href, location.href).href);
+      installed++;
+    }
+    reconcileInstagramOverlays();
+    if (Date.now() - lastInstagramDebugAt > 5000) {
+      lastInstagramDebugAt = Date.now();
+      var overlays = document.querySelectorAll('[data-medialoader-overlay="1"]').length;
+      MediaLoaderBridge.debug('media=' + medias.length + ' cards=' + cards.length +
+        ' anchors=' + validAnchors.length + ' unresolved=' + unresolved +
+        ' overlays=' + overlays + ' path=' + location.pathname);
+    }
+  }
+  function decorate() {
+    report();
+    recoverInstagramHome();
+    if (source === 'instagram') {
+      decorateInstagram();
+      return;
+    }
+    var anchors = document.querySelectorAll('a[href]'), count = 0;
+    for (var i = 0; i < anchors.length && count < 240; i++) {
+      var a = anchors[i];
+      if (!valid(a.href)) continue;
+      var card = cardFor(a);
+      if (!card) continue;
+      installButton(card, new URL(a.href, location.href).href);
+      count++;
+    }
+  }
+  var timer;
+  function scheduleDecorate(delay) {
+    clearTimeout(timer);
+    timer = setTimeout(decorate, delay || 180);
+  }
+  new MutationObserver(function (records) {
+    if (records.every(function(r) {
+      return r.type === 'childList' && r.addedNodes.length &&
+        Array.from(r.addedNodes).every(function(n) {
+          return n.nodeType === 1 && n.hasAttribute &&
+            (n.hasAttribute('data-medialoader-download') || n.hasAttribute('data-medialoader-overlay'));
+        });
+    })) return;
+    scheduleDecorate(180);
+  }).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: source === 'instagram',
+    attributeFilter: source === 'instagram' ? ['href'] : undefined
+  });
+  window.addEventListener('popstate', report);
+  window.addEventListener('hashchange', report);
+  decorate();
+  if (source === 'instagram') {
+    // Feed virtualization can update content without adding new DOM nodes. Reconcile periodically
+    // so every loaded post gets a current button and recycled cards get the current permalink.
+    var overlayFrame = 0;
+    function scheduleOverlayPosition() {
+      if (overlayFrame) return;
+      overlayFrame = requestAnimationFrame(function() {
+        overlayFrame = 0;
+        document.querySelectorAll('[data-medialoader-overlay="1"]').forEach(function(b) {
+          positionInstagramButton(b);
+        });
+      });
+    }
+    window.addEventListener('scroll', scheduleOverlayPosition, true);
+    window.addEventListener('resize', scheduleOverlayPosition);
+    var feedReconcile = setInterval(function() {
+      if (!document.documentElement.contains(document.body)) {
+        clearInterval(feedReconcile);
+        return;
+      }
+      decorate();
+    }, 700);
+    var recovery = setInterval(function() {
+      if (Date.now() > recoveryUntil || location.pathname !== '/') clearInterval(recovery);
+      else recoverInstagramHome();
+    }, 900);
+  }
+})();
+""".trimIndent()
+) === 0 || k.indexOf('__reactEventHandlers  function positionInstagramButton(button) {
+    var media = button.__mediaLoaderMedia;
+    if (!media || !document.documentElement.contains(media)) {
+      button.style.display = 'none';
+      return false;
+    }
+    var r = media.getBoundingClientRect();
+    var visible = r.width >= 180 && r.height >= 160 &&
+      r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth;
+    if (!visible) {
+      button.style.display = 'none';
+      return true;
+    }
+    var left = Math.min(innerWidth - 48, Math.max(8, r.right - 48));
+    var top = Math.max(8, Math.min(innerHeight - 48, r.top + 8));
+    button.style.left = left + 'px';
+    button.style.top = top + 'px';
+    button.style.display = 'inline-flex';
+    return true;
+  }
+  function installInstagramOverlay(card, url) {
+    var media = largestMedia(card);
+    if (!media) return null;
+    var existing = Array.from(document.querySelectorAll('[data-medialoader-overlay="1"]')).find(function(el) {
+      return el.dataset.url === url;
+    });
+    var b = existing || document.createElement('button');
+    if (!existing) {
+      b.type = 'button';
+      b.innerHTML = buttonMarkup();
+      b.setAttribute('data-medialoader-overlay', '1');
+      b.setAttribute('aria-label', 'Скачать этот материал');
+      b.style.cssText = 'position:fixed;z-index:2147483646;width:40px;height:40px;padding:0;border:0;border-radius:12px;background:#7638e8;color:white;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.35);cursor:pointer;-webkit-tap-highlight-color:transparent';
+      b.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        send(this.dataset.url);
+      }, true);
+      document.body.appendChild(b);
+    }
+    b.dataset.url = url;
+    b.__mediaLoaderCard = card;
+    b.__mediaLoaderMedia = media;
+    b.__mediaLoaderSeen = true;
+    positionInstagramButton(b);
+    return b;
+  }
+  function reconcileInstagramOverlays() {
+    var overlays = Array.from(document.querySelectorAll('[data-medialoader-overlay="1"]'));
+    overlays.forEach(function(b) {
+      if (!b.__mediaLoaderSeen || !positionInstagramButton(b)) b.remove();
+      else b.__mediaLoaderSeen = false;
+    });
+  }
+  function installButton(card, url) {
+    if (source === 'instagram') return !!installInstagramOverlay(card, url);
+    var existing = card.querySelector('[data-medialoader-download]');
+    if (existing) {
+      existing.dataset.url = url;
+      return false;
+    }
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.innerHTML = buttonMarkup();
+    b.setAttribute('data-medialoader-download', '1');
+    b.setAttribute('aria-label', 'Скачать этот материал');
+    b.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;position:relative;z-index:2;width:40px;height:40px;max-width:100%;flex:0 0 40px;margin:6px;border:0;border-radius:12px;background:#7638e8;color:white;font:600 26px system-ui,sans-serif;line-height:1;box-sizing:border-box;cursor:pointer';
+    b.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); send(this.dataset.url); });
+    b.dataset.url = url;
+    card.appendChild(b);
+    return true;
+  }
+  var lastInstagramDebugAt = 0;
+  function decorate() {
+    report();
+    recoverInstagramHome();
+    if (source === 'instagram') {
+      document.querySelectorAll('[data-medialoader-overlay="1"]').forEach(function(b) { b.__mediaLoaderSeen = false; });
+    }
+    var anchors = document.querySelectorAll('a[href]'), count = 0, validCount = 0, cardCount = 0, seenUrls = {};
+    for (var i = 0; i < anchors.length && count < 240; i++) {
+      var a = anchors[i];
+      if (!valid(a.href)) continue;
+      validCount++;
+      var url = new URL(a.href, location.href).href;
+      if (seenUrls[url]) continue;
+      var card = cardFor(a);
+      if (!card) continue;
+      cardCount++;
+      seenUrls[url] = true;
+      installButton(card, url);
+      count++;
+    }
+    if (source === 'instagram') {
+      reconcileInstagramOverlays();
+      if (Date.now() - lastInstagramDebugAt > 5000) {
+        lastInstagramDebugAt = Date.now();
+        var overlays = document.querySelectorAll('[data-medialoader-overlay="1"]').length;
+        MediaLoaderBridge.debug('anchors=' + anchors.length + ' valid=' + validCount +
+          ' cards=' + cardCount + ' overlays=' + overlays + ' path=' + location.pathname);
+      }
+    }
+  }
+  var timer;
+  function scheduleDecorate(delay) {
+    clearTimeout(timer);
+    timer = setTimeout(decorate, delay || 180);
+  }
+  new MutationObserver(function (records) {
+    if (records.every(function(r) {
+      return r.type === 'childList' && r.addedNodes.length &&
+        Array.from(r.addedNodes).every(function(n) {
+          return n.nodeType === 1 && n.hasAttribute &&
+            (n.hasAttribute('data-medialoader-download') || n.hasAttribute('data-medialoader-overlay'));
+        });
+    })) return;
+    scheduleDecorate(180);
+  }).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: source === 'instagram',
+    attributeFilter: source === 'instagram' ? ['href'] : undefined
+  });
+  window.addEventListener('popstate', report);
+  window.addEventListener('hashchange', report);
+  decorate();
+  if (source === 'instagram') {
+    // Feed virtualization can update content without adding new DOM nodes. Reconcile periodically
+    // so every loaded post gets a current button and recycled cards get the current permalink.
+    var overlayFrame = 0;
+    function scheduleOverlayPosition() {
+      if (overlayFrame) return;
+      overlayFrame = requestAnimationFrame(function() {
+        overlayFrame = 0;
+        document.querySelectorAll('[data-medialoader-overlay="1"]').forEach(function(b) {
+          positionInstagramButton(b);
+        });
+      });
+    }
+    window.addEventListener('scroll', scheduleOverlayPosition, true);
+    window.addEventListener('resize', scheduleOverlayPosition);
+    var feedReconcile = setInterval(function() {
+      if (!document.documentElement.contains(document.body)) {
+        clearInterval(feedReconcile);
+        return;
+      }
+      decorate();
+    }, 700);
+    var recovery = setInterval(function() {
+      if (Date.now() > recoveryUntil || location.pathname !== '/') clearInterval(recovery);
+      else recoverInstagramHome();
+    }, 900);
+  }
+})();
+""".trimIndent()
+) === 0;
+      });
+    } catch (_) { return null; }
+    if (!keys.length) return null;
+    var seen = typeof WeakSet !== 'undefined' ? new WeakSet() : null;
+    var visited = 0;
+    function walk(value, depth) {
+      if (typeof value === 'string') return normalizedInstagramUrl(value);
+      if (!value || typeof value !== 'object' || depth <= 0 || visited > 240) return null;
+      if (seen) {
+        if (seen.has(value)) return null;
+        seen.add(value);
+      }
+      visited++;
+      var preferred = ['href','to','url','permalink','pathname'];
+      for (var p = 0; p < preferred.length; p++) {
+        try {
+          var preferredValue = value[preferred[p]];
+          var hit = typeof preferredValue === 'string' ? normalizedInstagramUrl(preferredValue) : null;
+          if (hit) return hit;
+        } catch (_) {}
+      }
+      var objectKeys;
+      try { objectKeys = Object.keys(value).slice(0, 48); } catch (_) { return null; }
+      for (var k = 0; k < objectKeys.length; k++) {
+        var key = objectKeys[k];
+        if (key === '_owner' || key === 'return' || key === 'stateNode') continue;
+        var result;
+        try { result = walk(value[key], depth - 1); } catch (_) { result = null; }
+        if (result) return result;
+      }
+      return null;
+    }
+    for (var i = 0; i < keys.length; i++) {
+      var result = walk(node[keys[i]], 5);
+      if (result) return result;
+    }
+    return null;
+  }
+  function instagramPermalink(card) {
+    if (!card) return null;
+    var links = card.querySelectorAll('a[href]');
+    for (var i = 0; i < links.length; i++) {
+      if (valid(links[i].href)) return new URL(links[i].href, location.href).href;
+    }
+    var nodes = card.querySelectorAll('[href],[data-href],[data-url],[data-link],[data-permalink]');
+    for (var j = 0; j < nodes.length; j++) {
+      var fromAttrs = instagramUrlFromAttributes(nodes[j]);
+      if (fromAttrs) return fromAttrs;
+    }
+    var selfAttrs = instagramUrlFromAttributes(card);
+    if (selfAttrs) return selfAttrs;
+    var reactNodes = [card].concat(Array.from(card.querySelectorAll('[role="link"],a,time')).slice(0, 40));
+    for (var r = 0; r < reactNodes.length; r++) {
+      var reactUrl = instagramUrlFromReact(reactNodes[r]);
+      if (reactUrl) return reactUrl;
+    }
+    var html = '';
+    try { html = card.outerHTML.slice(0, 350000); } catch (_) {}
+    return normalizedInstagramUrl(html);
+  }
+  function instagramCardForMedia(media) {
+    var article = media.closest('article');
+    if (article) return article;
+    var node = media.parentElement, best = null, mediaRect = media.getBoundingClientRect();
+    for (var depth = 0; node && node !== document.body && depth < 14; depth++, node = node.parentElement) {
+      var rect = node.getBoundingClientRect();
+      if (rect.width < Math.min(230, innerWidth * .62) || rect.width > innerWidth * 1.18) continue;
+      if (rect.height < mediaRect.height || rect.height > Math.max(innerHeight * 2.4, mediaRect.height + 900)) continue;
+      if (!best) best = node;
+      if (instagramPermalink(node)) return node;
+      var controls = node.querySelectorAll('button,[role="button"],time').length;
+      if (controls >= 3 && rect.height >= mediaRect.height + 70) best = node;
+    }
+    return best;
+  }
+  function nearestInstagramPermalink(media, anchors) {
+    var mr = media.getBoundingClientRect(), bestUrl = null, bestScore = Infinity;
+    for (var i = 0; i < anchors.length; i++) {
+      var a = anchors[i], ar = a.getBoundingClientRect();
+      var vertical = ar.bottom < mr.top ? mr.top - ar.bottom : (ar.top > mr.bottom ? ar.top - mr.bottom : 0);
+      if (vertical > 520) continue;
+      var horizontal = ar.right < mr.left ? mr.left - ar.right : (ar.left > mr.right ? ar.left - mr.right : 0);
+      if (horizontal > innerWidth * .45) continue;
+      var score = vertical * 4 + horizontal + Math.abs((ar.left + ar.right) - (mr.left + mr.right)) * .15;
+      if (score < bestScore) {
+        bestScore = score;
+        bestUrl = new URL(a.href, location.href).href;
+      }
+    }
+    return bestUrl;
   }
   function positionInstagramButton(button) {
     var media = button.__mediaLoaderMedia;
