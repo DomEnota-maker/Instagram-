@@ -242,6 +242,37 @@ private val browserScript = """
     } catch (_) { return false; }
   }
   function send(url) { if (valid(url)) MediaLoaderBridge.pick(new URL(url, location.href).href); }
+  function firstValidLink(root) {
+    if (!root) return null;
+    if (root.matches && root.matches('a[href]') && valid(root.href)) return root.href;
+    var links = root.querySelectorAll ? root.querySelectorAll('a[href]') : [];
+    for (var i = 0; i < links.length; i++) {
+      if (valid(links[i].href)) return links[i].href;
+    }
+    return null;
+  }
+  function instagramCardForMedia(media) {
+    var article = media.closest && media.closest('article');
+    if (article) {
+      var articleUrl = firstValidLink(article);
+      if (articleUrl) return { card: article, url: articleUrl };
+    }
+
+    // Photo posts are often not links themselves. Walk from visible media outward until
+    // the surrounding feed card exposes its /p/ or /reel/ permalink among nearby siblings.
+    var mediaRect = media.getBoundingClientRect();
+    var node = media.parentElement;
+    for (var depth = 0; node && node !== document.body && depth < 16; depth++, node = node.parentElement) {
+      var rect = node.getBoundingClientRect();
+      if (rect.width < Math.min(220, innerWidth * .62)) continue;
+      if (rect.width > innerWidth * 1.18) continue;
+      if (rect.height < Math.max(160, mediaRect.height * .75)) continue;
+      if (rect.height > Math.max(innerHeight * 2.4, mediaRect.height * 3.5)) break;
+      var url = firstValidLink(node);
+      if (url) return { card: node, url: url };
+    }
+    return null;
+  }
   function cardFor(anchor) {
     var selector = source === 'instagram' ? 'article' :
       source === 'youtube' ? 'ytm-rich-item-renderer,ytm-compact-video-renderer,ytm-video-with-context-renderer,ytm-item-section-renderer ytm-video-card-renderer,ytd-rich-grid-media,ytd-video-renderer' :
@@ -250,10 +281,8 @@ private val browserScript = """
     var card = anchor.closest(selector);
     if (card || source !== 'instagram') return card;
 
-    // Instagram changes its feed markup frequently and some feed cards are no longer <article>.
-    // Walk upwards and choose the nearest reasonably-sized block that actually contains media.
     var node = anchor.parentElement;
-    for (var depth = 0; node && node !== document.body && depth < 12; depth++, node = node.parentElement) {
+    for (var depth = 0; node && node !== document.body && depth < 14; depth++, node = node.parentElement) {
       var rect = node.getBoundingClientRect();
       if (rect.width >= Math.min(240, innerWidth * .65) && rect.height >= 180 &&
           rect.width <= innerWidth * 1.15 && node.querySelector('img,video')) {
@@ -405,34 +434,46 @@ private val browserScript = """
     return true;
   }
   var lastInstagramDebugAt = 0;
+  function decorateInstagram() {
+    var media = document.querySelectorAll('video,img');
+    var count = 0;
+    for (var i = 0; i < media.length && count < 120; i++) {
+      var item = media[i];
+      var rect = item.getBoundingClientRect();
+      // Skip avatars, icons, hidden preload images and tiny decorations.
+      if (rect.width < 180 || rect.height < 160 || rect.bottom < -innerHeight || rect.top > innerHeight * 2) continue;
+      var resolved = instagramCardForMedia(item);
+      if (!resolved) continue;
+      installButton(resolved.card, resolved.url);
+      count++;
+    }
+
+    // Keep the permalink-first path as fallback for stories and unusual feed layouts.
+    var anchors = document.querySelectorAll('a[href]');
+    for (var j = 0; j < anchors.length && count < 180; j++) {
+      var a = anchors[j];
+      if (!valid(a.href)) continue;
+      var card = cardFor(a);
+      if (!card) continue;
+      installButton(card, a.href);
+      count++;
+    }
+  }
   function decorate() {
     report();
     recoverInstagramHome();
     if (source === 'instagram') {
-      document.querySelectorAll('[data-medialoader-overlay="1"]').forEach(function(b) { b.__mediaLoaderSeen = false; });
+      decorateInstagram();
+      return;
     }
-    var anchors = document.querySelectorAll('a[href]'), count = 0, validCount = 0, cardCount = 0, seenUrls = {};
-    for (var i = 0; i < anchors.length && count < 240; i++) {
+    var anchors = document.querySelectorAll('a[href]'), count = 0;
+    for (var i = 0; i < anchors.length && count < 160; i++) {
       var a = anchors[i];
       if (!valid(a.href)) continue;
-      validCount++;
-      var url = new URL(a.href, location.href).href;
-      if (seenUrls[url]) continue;
       var card = cardFor(a);
       if (!card) continue;
-      cardCount++;
-      seenUrls[url] = true;
-      installButton(card, url);
+      installButton(card, a.href);
       count++;
-    }
-    if (source === 'instagram') {
-      reconcileInstagramOverlays();
-      if (Date.now() - lastInstagramDebugAt > 5000) {
-        lastInstagramDebugAt = Date.now();
-        var overlays = document.querySelectorAll('[data-medialoader-overlay="1"]').length;
-        MediaLoaderBridge.debug('anchors=' + anchors.length + ' valid=' + validCount +
-          ' cards=' + cardCount + ' overlays=' + overlays + ' path=' + location.pathname);
-      }
     }
   }
   var timer;
